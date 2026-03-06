@@ -19,6 +19,7 @@ function adminLogin(){
   const p=document.getElementById('admin-pass').value;
   if(u===ADMIN.user&&p===ADMIN.pass){
     document.getElementById('view-login').style.display='none';
+    document.getElementById('main-content').style.display='block'; 
     adminLoggedIn=true;
     refreshAll();
     // Escuchar cambios en tiempo real
