@@ -267,7 +267,20 @@
 <div class="toast" id="toast"></div>
 
 <!-- Scripts — orden importante -->
+<!-- Firebase SDK (compat - no requiere bundler) -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<!-- Firebase config -->
+<script src="../firebase/config.js"></script>
+<!-- Leaflet -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module" src="../assets/js/webapp.js"></script>
+<!-- Módulos de la app — orden importante -->
+<script src="../assets/js/db.js"></script>
+<script src="../assets/js/map.js"></script>
+<script src="../assets/js/driver.js"></script>
+<script src="../assets/js/rides.js"></script>
+<script src="../assets/js/profile.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/app.js"></script>
 </body>
 </html>

@@ -302,7 +302,15 @@
 
 
 <!-- Scripts — orden importante -->
+<!-- Firebase SDK (compat - no requiere bundler) -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<!-- Firebase config -->
+<script src="../firebase/config.js"></script>
+<!-- Leaflet -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module" src="../assets/js/admin.js"></script>
+<!-- Admin JS -->
+<script src="../assets/js/db.js"></script>
+<script src="../assets/js/admin.js"></script>
 </body>
 </html>
