@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tuTaxi Admin — Panel de Control</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <!-- Fuentes -->
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <!-- Estilos -->
+  <link rel="stylesheet" href="../assets/css/main.css"/>
+  <link rel="stylesheet" href="../assets/css/admin.css"/>
+</head>
+<body>
+<body>
+
+<!-- ═══════════════════════════════════════ LOGIN ═══ -->
+<div id="view-login">
+  <div class="login-card">
+    <div style="text-align:center; margin-bottom:2rem;">
+      <div style="font-family:'Syne',sans-serif; font-size:2rem; font-weight:800;">Ride<span style="color:var(--accent)">Go</span></div>
+      <div style="font-size:0.75rem; color:var(--gray3); text-transform:uppercase; letter-spacing:2px; margin-top:0.3rem;">Panel de Administración</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Usuario administrador</label>
+      <input type="text" class="form-input" id="admin-user" placeholder="admin" value="admin">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contraseña</label>
+      <input type="password" class="form-input" id="admin-pass" placeholder="••••••••" value="admin123">
+    </div>
+
+    <button class="btn btn-primary btn-full" onclick="adminLogin()">Acceder al panel</button>
+
+    <p style="text-align:center; margin-top:1rem; font-size:0.78rem; color:var(--gray3);">
+      Credenciales por defecto: <strong style="color:var(--accent);">admin / admin123</strong>
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ SIDEBAR ═══ -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-text">Tu<span>Taxi</span></div>
+    <div class="logo-sub">Admin Panel</div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-title">Principal</div>
+    <div class="nav-item active" onclick="showView('dashboard')">
+      <div class="nav-icon">📊</div> Dashboard
+    </div>
+
+    <div class="nav-section-title">Usuarios</div>
+    <div class="nav-item" onclick="showView('users')">
+      <div class="nav-icon">👥</div> Todos los usuarios
+      <span class="nav-badge" id="badge-users">0</span>
+    </div>
+    <div class="nav-item" onclick="showView('passengers')">
+      <div class="nav-icon">👤</div> Pasajeros
+      <span class="nav-badge" id="badge-passengers">0</span>
+    </div>
+    <div class="nav-item" onclick="showView('drivers')">
+      <div class="nav-icon">🚗</div> Choferes
+      <span class="nav-badge" id="badge-drivers">0</span>
+    </div>
+
+    <div class="nav-section-title">Operaciones</div>
+    <div class="nav-item" onclick="showView('rides')">
+      <div class="nav-icon">🛣️</div> Viajes
+      <span class="nav-badge" id="badge-rides">0</span>
+    </div>
+    <div class="nav-item" onclick="showView('mapa')">
+      <div class="nav-icon">🗺️</div> Mapa en vivo
+      <span class="nav-badge" id="badge-online" style="background:var(--green);color:#000;">0</span>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="admin-info">
+      <div class="admin-avatar">A</div>
+      <div>
+        <div class="admin-name">Administrador</div>
+        <div class="admin-role">Super Admin</div>
+      </div>
+    </div>
+    <button class="btn-logout" onclick="adminLogout()">Cerrar sesión</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ MAIN ═══ -->
+<div class="main" id="main-content" style="display:none;">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div class="topbar-right">
+      <div class="live-dot"><div class="dot-pulse"></div> En vivo</div>
+      <div style="font-size:0.8rem; color:var(--gray3);" id="current-time"></div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="view-dashboard" class="view active">
+      <div class="section-header">
+        <h2>Resumen general</h2>
+        <p>Estado actual de la plataforma TuTaxi</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card yellow">
+          <div class="stat-icon">👥</div>
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-label">Total usuarios</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-icon">👤</div>
+          <div class="stat-value" id="stat-pasajeros">0</div>
+          <div class="stat-label">Pasajeros</div>
+        </div>
+        <div class="stat-card orange">
+          <div class="stat-icon">🚗</div>
+          <div class="stat-value" id="stat-choferes">0</div>
+          <div class="stat-label">Choferes</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-icon">✅</div>
+          <div class="stat-value" id="stat-rides-completed">0</div>
+          <div class="stat-label">Viajes completados</div>
+        </div>
+        <div class="stat-card blue">
+          <div class="stat-icon">⏳</div>
+          <div class="stat-value" id="stat-rides-pending">0</div>
+          <div class="stat-label">Viajes pendientes</div>
+        </div>
+      </div>
+
+      <!-- Recent users -->
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Usuarios recientes</div>
+          <button class="btn btn-sm btn-ghost" onclick="showView('users')">Ver todos →</button>
+        </div>
+        <div id="recent-users-table"></div>
+      </div>
+    </div>
+
+    <!-- ALL USERS -->
+    <div id="view-users" class="view">
+      <div class="section-header">
+        <h2>Todos los usuarios</h2>
+        <p>Gestiona todos los registros de la plataforma</p>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header">
+          <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+            <div class="table-title">Usuarios</div>
+            <div class="filter-tabs">
+              <button class="filter-tab active" onclick="filterUsers('all', this)">Todos</button>
+              <button class="filter-tab" onclick="filterUsers('activo', this)">Activos</button>
+              <button class="filter-tab" onclick="filterUsers('bloqueado', this)">Bloqueados</button>
+            </div>
+          </div>
+          <input class="search-input" placeholder="🔍 Buscar..." oninput="searchUsers(this.value)">
+        </div>
+        <div id="all-users-table"></div>
+      </div>
+    </div>
+
+    <!-- PASSENGERS -->
+    <div id="view-passengers" class="view">
+      <div class="section-header">
+        <h2>Pasajeros</h2>
+        <p>Usuarios registrados como pasajeros</p>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="table-title">Pasajeros registrados</div>
+          <input class="search-input" placeholder="🔍 Buscar..." oninput="searchPassengers(this.value)">
+        </div>
+        <div id="passengers-table"></div>
+      </div>
+    </div>
+
+    <!-- DRIVERS -->
+    <div id="view-drivers" class="view">
+      <div class="section-header">
+        <h2>Choferes</h2>
+        <p>Gestiona el estado de los choferes registrados</p>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header">
+          <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+            <div class="table-title">Choferes</div>
+            <div class="filter-tabs">
+              <button class="filter-tab active" onclick="filterDrivers('all', this)">Todos</button>
+              <button class="filter-tab" onclick="filterDrivers('activo', this)">Activos</button>
+              <button class="filter-tab" onclick="filterDrivers('bloqueado', this)">Bloqueados</button>
+            </div>
+          </div>
+          <input class="search-input" placeholder="🔍 Buscar...">
+        </div>
+        <div id="drivers-table"></div>
+      </div>
+    </div>
+
+    <!-- RIDES -->
+    <div id="view-rides" class="view">
+      <div class="section-header">
+        <h2>Viajes</h2>
+        <p>Historial de todos los viajes en la plataforma</p>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header">
+          <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+            <div class="table-title">Viajes</div>
+            <div class="filter-tabs">
+              <button class="filter-tab active" onclick="filterRides('all', this)">Todos</button>
+              <button class="filter-tab" onclick="filterRides('pendiente', this)">Pendientes</button>
+              <button class="filter-tab" onclick="filterRides('aceptado', this)">Aceptados</button>
+              <button class="filter-tab" onclick="filterRides('completado', this)">Completados</button>
+              <button class="filter-tab" onclick="filterRides('cancelado', this)">Cancelados</button>
+            </div>
+          </div>
+        </div>
+        <div id="rides-table"></div>
+      </div>
+    </div>
+    <!-- MAPA EN VIVO -->
+    <div id="view-mapa" class="view">
+      <div class="section-header">
+        <h2>Mapa en vivo 🗺️</h2>
+        <p>Posición en tiempo real de todos los choferes activos</p>
+      </div>
+
+      <!-- Stats rápidas -->
+      <div style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+        <div style="background:var(--gray);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:1rem 1.5rem;display:flex;align-items:center;gap:.8rem;">
+          <span style="font-size:1.5rem;">🟢</span>
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;" id="map-stat-online">0</div>
+            <div style="font-size:.78rem;color:var(--gray3);">Choferes en línea</div>
+          </div>
+        </div>
+        <div style="background:var(--gray);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:1rem 1.5rem;display:flex;align-items:center;gap:.8rem;">
+          <span style="font-size:1.5rem;">🔴</span>
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;" id="map-stat-ocupados">0</div>
+            <div style="font-size:.78rem;color:var(--gray3);">Con pasaje</div>
+          </div>
+        </div>
+        <div style="background:var(--gray);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:1rem 1.5rem;display:flex;align-items:center;gap:.8rem;">
+          <span style="font-size:1.5rem;">⚫</span>
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;" id="map-stat-libres">0</div>
+            <div style="font-size:.78rem;color:var(--gray3);">Disponibles</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mapa -->
+      <div style="background:var(--gray);border:1px solid rgba(255,255,255,.06);border-radius:20px;overflow:hidden;">
+        <div style="padding:1rem 1.5rem;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-family:'Syne',sans-serif;font-weight:700;">Choferes activos</div>
+          <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--gray3);">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;"></div>
+            Actualización cada 5s
+          </div>
+        </div>
+        <!-- El div del mapa DEBE tener altura fija -->
+        <div id="admin-map" style="width:100%;height:500px;background:#1c1c2e;"></div>
+      </div>
+
+      <!-- Lista de choferes en línea -->
+      <div style="margin-top:1.5rem;">
+        <div style="font-family:'Syne',sans-serif;font-size:.78rem;color:var(--gray3);text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;">Detalle de choferes</div>
+        <div id="admin-chofer-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ MODAL ═══ -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal">
+    <div class="modal-top">
+      <div class="modal-title" id="modal-title">Detalle de usuario</div>
+      <button class="close-btn" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+
+<!-- Scripts — orden importante -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="../assets/js/admin.js"></script>
+</body>
+</html>

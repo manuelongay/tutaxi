@@ -1,0 +1,112 @@
+/* ============================================================
+   tuTaxi — main.css
+   Estilos compartidos entre webapp.html y admin.html
+   ============================================================ */
+
+/* ── VARIABLES ── */
+:root {
+  --black:   #0a0a0a;
+  --white:   #fafafa;
+  --accent:  #f5c518;
+  --accent2: #ff6b35;
+  --gray:    #1a1a1a;
+  --gray2:   #2a2a2a;
+  --gray3:   #888;
+  --green:   #22c55e;
+  --red:     #ef4444;
+  --blue:    #3b82f6;
+  --purple:  #a855f7;
+}
+
+/* ── RESET ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: 'Segoe UI', sans-serif;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4 { font-family: 'Syne', sans-serif; }
+
+/* ── BOTONES ── */
+.btn {
+  padding: .8rem 1.8rem;
+  border-radius: 100px;
+  font-size: .9rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all .2s;
+}
+.btn-primary  { background: var(--accent); color: #000; }
+.btn-primary:hover { background: #ffd23f; transform: translateY(-1px); }
+.btn-outline  { background: transparent; color: var(--white); border: 1.5px solid rgba(255,255,255,.25); }
+.btn-secondary{ background: var(--gray2); color: var(--white); }
+.btn-danger   { background: var(--red); color: white; }
+.btn-success  { background: var(--green); color: white; }
+.btn-full     { width: 100%; border-radius: 12px; padding: .85rem; }
+.btn-sm       { padding: .4rem 1rem; font-size: .82rem; }
+.btn-group    { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+
+/* ── FORMULARIOS ── */
+.form-group  { margin-bottom: 1.1rem; }
+.form-label  { display: block; font-size: .78rem; color: var(--gray3); margin-bottom: .35rem; text-transform: uppercase; letter-spacing: .5px; }
+.form-input  { width: 100%; background: var(--gray2); border: 1.5px solid rgba(255,255,255,.08); border-radius: 10px; color: var(--white); padding: .75rem 1rem; font-size: .92rem; outline: none; transition: border-color .2s; }
+.form-input:focus { border-color: var(--accent); }
+.form-input::placeholder { color: #444; }
+select.form-input option { background: var(--gray2); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(120px);
+  background: var(--gray2);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 100px;
+  padding: .75rem 1.4rem;
+  font-size: .88rem;
+  z-index: 99999;
+  transition: transform .3s;
+  white-space: nowrap;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.ok   { border-color: rgba(34,197,94,.5); }
+.toast.err  { border-color: rgba(239,68,68,.5); }
+.toast.success { border-color: rgba(34,197,94,.4); color: var(--green); }
+.toast.error   { border-color: rgba(239,68,68,.4);  color: var(--red); }
+
+/* ── EMPTY STATE ── */
+.empty       { text-align: center; padding: 3rem 1rem; color: var(--gray3); }
+.empty-icon  { font-size: 2.8rem; margin-bottom: .8rem; }
+.empty-title { font-weight: 700; color: var(--white); margin-bottom: .4rem; }
+
+/* ── BADGES / STATUS ── */
+.badge { display: inline-flex; align-items: center; gap: .3rem; border-radius: 100px; padding: .25rem .7rem; font-size: .75rem; font-weight: 700; letter-spacing: .3px; white-space: nowrap; }
+.badge-activo    { background: rgba(34,197,94,.12);  color: var(--green);  }
+.badge-bloqueado { background: rgba(239,68,68,.12);  color: var(--red);    }
+.badge-pendiente { background: rgba(245,197,24,.12); color: var(--accent); }
+.badge-completado{ background: rgba(59,130,246,.12); color: var(--blue);   }
+.badge-cancelado { background: rgba(239,68,68,.12);  color: var(--red);    }
+.badge-pasajero  { background: rgba(168,85,247,.12); color: var(--purple); }
+.badge-chofer    { background: rgba(255,107,53,.12); color: var(--accent2);}
+
+/* ── SPINNER ── */
+.spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.15); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── ANIMACIONES ── */
+@keyframes slideUp   { from { opacity:0; transform: translateY(30px); } to { opacity:1; transform: translateY(0); } }
+@keyframes slideDown { from { opacity:0; transform: translateX(-50%) translateY(-20px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+@keyframes fadeIn    { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+@keyframes pulse     { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.5; transform:scale(1.3); } }
+
+/* ── MISC ── */
+.mt     { margin-top: 1rem; }
+.divider{ height: 1px; background: rgba(255,255,255,.05); margin: 1.5rem 0; }
+@media(max-width:460px) { .form-row { grid-template-columns: 1fr; } }

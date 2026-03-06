@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tuTaxi</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <!-- Estilos -->
+  <link rel="stylesheet" href="../assets/css/main.css"/>
+  <link rel="stylesheet" href="../assets/css/webapp.css"/>
+</head>
+<body>
+
+<!-- LANDING -->
+<div id="screen-landing" class="screen active">
+  <div style="max-width:480px;width:100%;">
+    <div class="logo">tu<span>Taxi</span></div>
+    <p class="tagline">Tu viaje, tu precio</p>
+    <p style="color:var(--gray3);line-height:1.6;margin-bottom:2rem;">Conecta con choferes de confianza. Tú propones la tarifa.</p>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="go('login')">Iniciar sesión</button>
+      <button class="btn btn-outline" onclick="go('register')">Crear cuenta</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div id="screen-login" class="screen">
+  <div class="auth-card">
+    <div class="auth-logo">tu<span>Taxi</span></div>
+    <p class="auth-sub">Bienvenido de vuelta</p>
+    <div class="form-group"><label class="form-label">Correo</label><input type="email" class="form-input" id="l-email" placeholder="tu@correo.com"></div>
+    <div class="form-group"><label class="form-label">Contraseña</label><input type="password" class="form-input" id="l-pass" placeholder="••••••••"></div>
+    <button class="btn btn-primary btn-full mt" onclick="doLogin()">Entrar</button>
+    <div class="divider-auth">o</div>
+    <div class="link-text">¿No tienes cuenta? <a onclick="go('register')">Regístrate</a></div>
+    <div class="link-text" style="margin-top:.5rem;"><a onclick="go('landing')">← Volver</a></div>
+  </div>
+</div>
+
+<!-- REGISTER -->
+<div id="screen-register" class="screen">
+  <div class="auth-card" style="max-height:90vh;overflow-y:auto;">
+    <div class="auth-logo">tu<span>Taxi</span></div>
+    <p class="auth-sub">Crea tu cuenta</p>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="r-nom" placeholder="Juan"></div>
+      <div class="form-group"><label class="form-label">Apellido</label><input type="text" class="form-input" id="r-ape" placeholder="Pérez"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Correo</label><input type="email" class="form-input" id="r-email" placeholder="tu@correo.com"></div>
+    <div class="form-group"><label class="form-label">Teléfono</label><input type="tel" class="form-input" id="r-tel" placeholder="+52 999 000 0000"></div>
+    <div class="form-group"><label class="form-label">Contraseña</label><input type="password" class="form-input" id="r-pass" placeholder="Mínimo 6 caracteres"></div>
+    <div class="form-group">
+      <label class="form-label">Tipo de cuenta</label>
+      <select class="form-input" id="r-rol" onchange="toggleChoferFields()">
+        <option value="pasajero">👤 Pasajero</option>
+        <option value="chofer">🚗 Chofer</option>
+      </select>
+    </div>
+    <div id="chofer-fields" style="display:none;">
+      <div class="form-group"><label class="form-label">Vehículo</label><input type="text" class="form-input" id="r-veh" placeholder="Toyota Corolla 2022"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Placas</label><input type="text" class="form-input" id="r-pla" placeholder="ABC-1234"></div>
+        <div class="form-group"><label class="form-label">Color</label><input type="text" class="form-input" id="r-col" placeholder="Blanco"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Licencia</label><input type="text" class="form-input" id="r-lic" placeholder="LIC-000000"></div>
+    </div>
+    <button class="btn btn-primary btn-full mt" onclick="doRegister()">Crear cuenta</button>
+    <div class="link-text" style="margin-top:.8rem;">¿Ya tienes cuenta? <a onclick="go('login')">Iniciar sesión</a></div>
+    <div class="link-text" style="margin-top:.4rem;"><a onclick="go('landing')">← Volver</a></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="screen-app" class="screen">
+  <div class="topbar">
+    <div class="topbar-logo">tu<span>Taxi</span></div>
+    <button id="theme-btn" onclick="toggleTheme()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;padding:.3rem;">🌙</button>
+    <div class="topbar-right">
+      <div class="user-badge"><div class="online-dot"></div><span id="tb-name">—</span></div>
+      <span id="tb-role" class="role-chip role-pasajero">Pasajero</span>
+      <button class="btn btn-sm btn-secondary" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" id="tab-inicio-btn"    onclick="showTab('t-home',this)">Inicio</button>
+    <button class="tab"                               onclick="showTab('t-rides',this)">Mis viajes</button>
+    <button class="tab" id="tab-chofer-btn"    style="display:none" onclick="showTab('t-driver',this)">🚗 Solicitudes</button>
+    <button class="tab" id="tab-ganancias-btn" style="display:none" onclick="showTab('t-ganancias',this)">💰 Ganancias</button>
+    <button class="tab"                               onclick="showTab('t-profile',this)">Perfil</button>
+  </div>
+
+  <!-- TAB INICIO -->
+  <div id="t-home" class="tab-content active">
+    <div class="card">
+      <div class="card-title">¿A dónde vamos? 🗺️</div>
+      <div class="search-wrap">
+        <span class="s-icon">📍</span>
+        <input type="text" class="form-input" id="inp-origen" placeholder="Origen — escribe la dirección"
+          autocomplete="off" oninput="buscar('origen',this.value)" onfocus="buscar('origen',this.value)" onblur="cerrarDD('origen')">
+        <button class="s-clear" id="cl-origen" onclick="limpiar('origen')">✕</button>
+        <div class="dropdown" id="dd-origen"></div>
+      </div>
+      <div class="search-wrap">
+        <span class="s-icon">🎯</span>
+        <input type="text" class="form-input" id="inp-destino" placeholder="Destino"
+          autocomplete="off" oninput="buscar('destino',this.value)" onfocus="buscar('destino',this.value)" onblur="cerrarDD('destino')">
+        <button class="s-clear" id="cl-destino" onclick="limpiar('destino')">✕</button>
+        <div class="dropdown" id="dd-destino"></div>
+      </div>
+      <div class="map-label">Mapa interactivo</div>
+      <div id="map"></div>
+      <div class="map-controls">
+        <button class="map-btn" onclick="miUbicacion()">📡 Mi ubicación</button>
+        <button class="map-btn" id="btn-po" onclick="activarPin('origen')">📍 Pin origen</button>
+        <button class="map-btn" id="btn-pd" onclick="activarPin('destino')">🎯 Pin destino</button>
+      </div>
+      <div class="route-info" id="route-info">
+        <div class="ri-item"><span class="ri-lbl">Distancia</span><span class="ri-val" id="ri-dist">—</span></div>
+        <div class="ri-item"><span class="ri-lbl">Tiempo est.</span><span class="ri-val" id="ri-time">—</span></div>
+        <div class="ri-item"><span class="ri-lbl">Precio sugerido</span><span class="ri-val" id="ri-sug">—</span></div>
+      </div>
+      <div class="price-box">
+        <div><div class="price-lbl">Tu oferta</div><div class="price-val" id="price-show">$50</div></div>
+        <div style="flex:1;padding-left:1rem;">
+          <input type="range" id="price-range" min="30" max="500" value="50" step="5"
+            style="width:100%;accent-color:var(--accent);" oninput="setPrice(this.value)">
+          <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--gray3);margin-top:.3rem;"><span>$30</span><span>$500</span></div>
+        </div>
+      </div>
+      <div class="sec-label">Sugerencias rápidas</div>
+      <div class="chips">
+        <div class="chip" onclick="pickPrice(50)">$50</div>
+        <div class="chip" onclick="pickPrice(80)">$80</div>
+        <div class="chip" onclick="pickPrice(120)">$120</div>
+        <div class="chip" onclick="pickPrice(200)">$200</div>
+        <div class="chip" onclick="pickPrice(350)">$350</div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="solicitarViaje()">Solicitar viaje 🚖</button>
+    </div>
+    <div id="viaje-activo-wrap" style="display:none;">
+      <div class="sec-label">Viaje en curso</div>
+      <div id="viaje-activo-card"></div>
+    </div>
+  </div>
+
+  <!-- TAB MIS VIAJES -->
+  <div id="t-rides" class="tab-content">
+    <div class="sec-label">Historial</div>
+    <div id="rides-list"><div class="empty"><div class="empty-icon">🛣️</div><div class="empty-title">Sin viajes aún</div></div></div>
+  </div>
+
+  <!-- TAB CHOFER -->
+  <div id="t-driver" class="tab-content">
+    <div class="driver-box">
+      <div><div style="font-weight:700;">Disponible para viajes</div><div style="font-size:.8rem;color:var(--gray3);margin-top:.2rem;" id="driver-sub">Desconectado</div></div>
+      <label class="switch"><input type="checkbox" id="driver-sw" onchange="toggleChofer()"><span class="sw-sl"></span></label>
+    </div>
+    <div class="sec-label">Solicitudes disponibles</div>
+    <div id="solicitudes-list"><div class="empty"><div class="empty-icon">📡</div><div class="empty-title">Activa tu disponibilidad</div></div></div>
+  </div>
+
+  <!-- TAB GANANCIAS -->
+  <div id="t-ganancias" class="tab-content">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:.72rem;color:var(--gray3);text-transform:uppercase;letter-spacing:1px;margin-bottom:.4rem;">Hoy</div>
+        <div style="font-size:1.8rem;font-weight:900;color:var(--accent);" id="gan-hoy">$0</div>
+        <div style="font-size:.75rem;color:var(--gray3);margin-top:.2rem;" id="gan-hoy-viajes">0 viajes</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:.72rem;color:var(--gray3);text-transform:uppercase;letter-spacing:1px;margin-bottom:.4rem;">Esta semana</div>
+        <div style="font-size:1.8rem;font-weight:900;color:var(--accent);" id="gan-semana">$0</div>
+        <div style="font-size:.75rem;color:var(--gray3);margin-top:.2rem;" id="gan-semana-viajes">0 viajes</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:.72rem;color:var(--gray3);text-transform:uppercase;letter-spacing:1px;margin-bottom:.4rem;">Este mes</div>
+        <div style="font-size:1.8rem;font-weight:900;color:var(--green);" id="gan-mes">$0</div>
+        <div style="font-size:.75rem;color:var(--gray3);margin-top:.2rem;" id="gan-mes-viajes">0 viajes</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:.72rem;color:var(--gray3);text-transform:uppercase;letter-spacing:1px;margin-bottom:.4rem;">Total histórico</div>
+        <div style="font-size:1.8rem;font-weight:900;color:var(--green);" id="gan-total">$0</div>
+        <div style="font-size:.75rem;color:var(--gray3);margin-top:.2rem;" id="gan-total-viajes">0 viajes</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Ganancias últimos 7 días 📊</div>
+      <div id="grafica-wrap" style="display:flex;align-items:flex-end;gap:.4rem;height:120px;padding:.5rem 0;"></div>
+      <div id="grafica-labels" style="display:flex;gap:.4rem;margin-top:.4rem;"></div>
+    </div>
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+      <button class="map-btn" id="fil-todos"  onclick="filtrarGanancias('todos',this)"  style="color:var(--accent);border-color:rgba(245,197,24,.4);">Todos</button>
+      <button class="map-btn" id="fil-hoy"    onclick="filtrarGanancias('hoy',this)">Hoy</button>
+      <button class="map-btn" id="fil-semana" onclick="filtrarGanancias('semana',this)">Esta semana</button>
+      <button class="map-btn" id="fil-mes"    onclick="filtrarGanancias('mes',this)">Este mes</button>
+    </div>
+    <div class="sec-label">Detalle de viajes</div>
+    <div id="historial-ganancias"></div>
+  </div>
+
+  <!-- TAB PERFIL -->
+  <div id="t-profile" class="tab-content">
+    <div class="prof-head">
+      <div style="position:relative;display:inline-block;">
+        <div class="prof-av" id="prof-av" style="cursor:pointer;overflow:hidden;"
+          onclick="document.getElementById('foto-input').click()" title="Cambiar foto">
+          <img id="prof-foto" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%;">
+          <span id="prof-initials">U</span>
+        </div>
+        <div onclick="document.getElementById('foto-input').click()"
+          style="position:absolute;bottom:0;right:0;background:var(--accent);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.7rem;border:2px solid var(--black);">✏️</div>
+        <input type="file" id="foto-input" accept="image/*" style="display:none;" onchange="cambiarFoto(this)">
+      </div>
+      <div>
+        <div style="font-size:1.2rem;font-weight:700;" id="prof-name">—</div>
+        <div style="color:var(--gray3);font-size:.85rem;margin-top:.2rem;" id="prof-email">—</div>
+      </div>
+    </div>
+    <div id="prof-ver">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+          <div class="card-title" style="margin:0;">Información personal</div>
+          <button class="map-btn" onclick="activarEdicion()" style="color:var(--accent);">✏️ Editar</button>
+        </div>
+        <div id="prof-rows"></div>
+      </div>
+      <div class="card" id="veh-card" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+          <div class="card-title" style="margin:0;">Vehículo 🚗</div>
+          <button class="map-btn" onclick="activarEdicion()" style="color:var(--accent);">✏️ Editar</button>
+        </div>
+        <div id="veh-rows"></div>
+      </div>
+    </div>
+    <div id="prof-editar" style="display:none;">
+      <div class="card">
+        <div class="card-title">Editar perfil ✏️</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="edit-nom" placeholder="Nombre"></div>
+          <div class="form-group"><label class="form-label">Apellido</label><input type="text" class="form-input" id="edit-ape" placeholder="Apellido"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Teléfono</label><input type="tel" class="form-input" id="edit-tel" placeholder="+52 999 000 0000"></div>
+        <div class="form-group">
+          <label class="form-label">Nueva contraseña <span style="color:var(--gray3);font-weight:400;">(dejar vacío para no cambiar)</span></label>
+          <input type="password" class="form-input" id="edit-pass" placeholder="••••••••">
+        </div>
+      </div>
+      <div class="card" id="edit-veh-card" style="display:none;">
+        <div class="card-title">Vehículo 🚗</div>
+        <div class="form-group"><label class="form-label">Modelo</label><input type="text" class="form-input" id="edit-veh" placeholder="Toyota Corolla 2022"></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Placas</label><input type="text" class="form-input" id="edit-pla" placeholder="ABC-1234"></div>
+          <div class="form-group"><label class="form-label">Color</label><input type="text" class="form-input" id="edit-col" placeholder="Blanco"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Licencia</label><input type="text" class="form-input" id="edit-lic" placeholder="LIC-000000"></div>
+      </div>
+      <div style="display:flex;gap:.8rem;margin-bottom:1.5rem;">
+        <button class="btn btn-primary btn-full" onclick="guardarPerfil()">Guardar cambios</button>
+        <button class="btn btn-secondary btn-full" onclick="cancelarEdicion()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Scripts — orden importante -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="../assets/js/webapp.js"></script>
+</body>
+</html>
