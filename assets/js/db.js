@@ -1,129 +1,82 @@
 /* ============================================================
    tuTaxi — db.js
    Capa de datos — Firebase Realtime Database
+   Sin ES modules — compatible con GitHub Pages sin bundler
+   Para migrar a otro backend solo cambia este archivo
    ============================================================ */
 
-import { db } from "../../firebase/config.js";
-import {
-  ref, set, get, push, update, onValue, child
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-/* ─────────────────────────────────────────────────────────────
-   USUARIOS
-───────────────────────────────────────────────────────────── */
 const DB = {
 
-  // Guardar usuario nuevo
-  saveUser: async (user) => {
-    await set(ref(db, `users/${user.id}`), user);
-  },
+  /* ── USUARIOS ─────────────────────────────────────────── */
 
-  // Obtener todos los usuarios (una vez)
-  users: async () => {
-    const snap = await get(ref(db, 'users'));
-    return snap.exists() ? Object.values(snap.val()) : [];
-  },
+  saveUser: (user) =>
+    firebase.database().ref(`users/${user.id}`).set(user),
 
-  // Obtener un usuario por id
   getUser: async (id) => {
-    const snap = await get(ref(db, `users/${id}`));
+    const snap = await firebase.database().ref(`users/${id}`).get();
     return snap.exists() ? snap.val() : null;
   },
 
-  // Actualizar campos de un usuario
-  updateUser: async (id, data) => {
-    await update(ref(db, `users/${id}`), data);
-  },
-
-  // Escuchar cambios en usuarios en tiempo real
-  onUsers: (cb) => {
-    onValue(ref(db, 'users'), snap => {
-      cb(snap.exists() ? Object.values(snap.val()) : []);
-    });
-  },
-
-  /* ─────────────────────────────────────────────────────────
-     VIAJES
-  ───────────────────────────────────────────────────────── */
-
-  // Crear viaje nuevo
-  saveRide: async (ride) => {
-    await set(ref(db, `rides/${ride.id}`), ride);
-  },
-
-  // Obtener todos los viajes (una vez)
-  rides: async () => {
-    const snap = await get(ref(db, 'rides'));
+  users: async () => {
+    const snap = await firebase.database().ref('users').get();
     return snap.exists() ? Object.values(snap.val()) : [];
   },
 
-  // Actualizar campos de un viaje
-  updateRide: async (id, data) => {
-    await update(ref(db, `rides/${id}`), data);
+  updateUser: (id, data) =>
+    firebase.database().ref(`users/${id}`).update(data),
+
+  onUsers: (cb) =>
+    firebase.database().ref('users').on('value', snap =>
+      cb(snap.exists() ? Object.values(snap.val()) : [])
+    ),
+
+  /* ── VIAJES ───────────────────────────────────────────── */
+
+  saveRide: (ride) =>
+    firebase.database().ref(`rides/${ride.id}`).set(ride),
+
+  rides: async () => {
+    const snap = await firebase.database().ref('rides').get();
+    return snap.exists() ? Object.values(snap.val()) : [];
   },
 
-  // Escuchar viajes en tiempo real
-  onRides: (cb) => {
-    onValue(ref(db, 'rides'), snap => {
-      cb(snap.exists() ? Object.values(snap.val()) : []);
-    });
-  },
+  updateRide: (id, data) =>
+    firebase.database().ref(`rides/${id}`).update(data),
 
-  // Escuchar un viaje específico
-  onRide: (id, cb) => {
-    onValue(ref(db, `rides/${id}`), snap => {
-      cb(snap.exists() ? snap.val() : null);
-    });
-  },
+  onRides: (cb) =>
+    firebase.database().ref('rides').on('value', snap =>
+      cb(snap.exists() ? Object.values(snap.val()) : [])
+    ),
 
-  /* ─────────────────────────────────────────────────────────
-     SESIÓN (sigue en localStorage — es local por dispositivo)
-  ───────────────────────────────────────────────────────── */
+  /* ── NOTIFICACIONES ───────────────────────────────────── */
+
+  saveNotif: (notif) =>
+    firebase.database().ref(`notifs/${notif.id}`).set(notif),
+
+  onNotifs: (userId, cb) =>
+    firebase.database().ref('notifs').on('value', snap => {
+      if (!snap.exists()) { cb([]); return; }
+      cb(Object.values(snap.val()).filter(n => n.pasId === userId && !n.leida));
+    }),
+
+  markNotifRead: (id) =>
+    firebase.database().ref(`notifs/${id}`).update({ leida: true }),
+
+  /* ── SESIÓN (localStorage — local por dispositivo) ────── */
+
   session:      () => JSON.parse(localStorage.getItem('tt_session') || 'null'),
   saveSession:  s  => localStorage.setItem('tt_session', JSON.stringify(s)),
   clearSession: () => localStorage.removeItem('tt_session'),
 
-  /* ─────────────────────────────────────────────────────────
-     NOTIFICACIONES
-  ───────────────────────────────────────────────────────── */
+  /* ── ALIAS ADMIN ──────────────────────────────────────── */
 
-  // Agregar notificación para un usuario
-  saveNotif: async (notif) => {
-    await set(ref(db, `notifs/${notif.id}`), notif);
-  },
-
-  // Escuchar notificaciones de un usuario en tiempo real
-  onNotifs: (userId, cb) => {
-    onValue(ref(db, 'notifs'), snap => {
-      if (!snap.exists()) { cb([]); return; }
-      const todas = Object.values(snap.val());
-      cb(todas.filter(n => n.pasId === userId && !n.leida));
-    });
-  },
-
-  // Marcar notificación como leída
-  markNotifRead: async (id) => {
-    await update(ref(db, `notifs/${id}`), { leida: true });
-  },
-
-  /* ─────────────────────────────────────────────────────────
-     ALIAS para admin.html (compatibilidad)
-  ───────────────────────────────────────────────────────── */
   getUsers: async () => {
-    const snap = await get(ref(db, 'users'));
+    const snap = await firebase.database().ref('users').get();
     return snap.exists() ? Object.values(snap.val()) : [];
   },
 
   getRides: async () => {
-    const snap = await get(ref(db, 'rides'));
+    const snap = await firebase.database().ref('rides').get();
     return snap.exists() ? Object.values(snap.val()) : [];
   },
-
-  saveUsers: async (users) => {
-    const updates = {};
-    users.forEach(u => { updates[`users/${u.id}`] = u; });
-    await update(ref(db), updates);
-  },
 };
-
-export { DB, ref, db, onValue, update, get };

@@ -3,8 +3,6 @@
    Lógica del panel administrativo
    ============================================================ */
 
-import { DB } from './db.js';
-
 // ── ESTADO ─────────────────────────────────────────
 let adminLoggedIn = false;
 let adminMap = null;
