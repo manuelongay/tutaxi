@@ -99,6 +99,8 @@ function initApp() {
       renderViajeActivo(rides);
       actualizarIconosChoferes(rides);
     });
+    // Tracking en tiempo real de choferes en el mapa
+    iniciarTrackingMapa();
   }
 
   refrescarPerfil();
