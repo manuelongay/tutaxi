@@ -11,6 +11,8 @@ function toggleChofer() {
   if (driverOn) {
     toast('¡En línea! 🚗', 'ok');
     iniciarTracking();
+    // Cargar solicitudes existentes al activarse
+    DB.rides().then(rides => renderSolicitudes(rides));
   } else {
     document.getElementById('solicitudes-list').innerHTML =
       '<div class="empty"><div class="empty-icon">📡</div><div class="empty-title">Activa tu disponibilidad</div></div>';
