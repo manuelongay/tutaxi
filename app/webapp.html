@@ -87,6 +87,7 @@
     <button class="tab active" id="tab-inicio-btn"    onclick="showTab('t-home',this)">Inicio</button>
     <button class="tab"                               onclick="showTab('t-rides',this)">Mis viajes</button>
     <button class="tab" id="tab-chofer-btn"    style="display:none" onclick="showTab('t-driver',this)">🚗 Solicitudes</button>
+    <button class="tab" id="tab-encurso-btn"   style="display:none" onclick="showTab('t-encurso',this)">🗺️ En curso</button>
     <button class="tab" id="tab-ganancias-btn" style="display:none" onclick="showTab('t-ganancias',this)">💰 Ganancias</button>
     <button class="tab"                               onclick="showTab('t-profile',this)">Perfil</button>
   </div>
@@ -159,6 +160,25 @@
     </div>
     <div class="sec-label">Solicitudes disponibles</div>
     <div id="solicitudes-list"><div class="empty"><div class="empty-icon">📡</div><div class="empty-title">Activa tu disponibilidad</div></div></div>
+  </div>
+
+  <!-- TAB EN CURSO -->
+  <div id="t-encurso" class="tab-content">
+    <div id="encurso-empty" class="empty" style="padding:3rem 1rem;">
+      <div class="empty-icon">🗺️</div>
+      <div class="empty-title">Sin viaje en curso</div>
+      <div class="empty-sub">Cuando aceptes un viaje aparecerá aquí</div>
+    </div>
+    <div id="encurso-wrap" style="display:none;">
+      <div class="avail-card" style="margin-bottom:1rem;" id="encurso-info"></div>
+      <div style="border-radius:16px;overflow:hidden;margin-bottom:1rem;border:1px solid rgba(255,255,255,.08);">
+        <div id="map-encurso" style="width:100%;height:340px;background:#1c1c2e;"></div>
+      </div>
+      <div style="display:flex;gap:.6rem;">
+        <button class="btn btn-danger" style="flex:1;" id="btn-cancelar-encurso">Cancelar</button>
+        <button class="btn btn-success" style="flex:2;" id="btn-completar-encurso">Completar viaje ✓</button>
+      </div>
+    </div>
   </div>
 
   <!-- TAB GANANCIAS -->
