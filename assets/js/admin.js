@@ -370,6 +370,7 @@ async function cargarTarifas() {
   document.getElementById('tar-horaInicio').value = t.horaInicio ?? 22;
   document.getElementById('tar-horaFin').value    = t.horaFin    ?? 6;
   document.getElementById('tar-espera').value     = t.espera     ?? 1;
+  document.getElementById('tar-radioKm').value    = t.radioKm    ?? 3;
   actualizarEjemplos(t);
 }
 
@@ -381,6 +382,7 @@ async function guardarTarifas() {
     horaInicio: parseInt(document.getElementById('tar-horaInicio').value)   || 22,
     horaFin:    parseInt(document.getElementById('tar-horaFin').value)      || 6,
     espera:     parseFloat(document.getElementById('tar-espera').value)     || 1,
+    radioKm:    parseFloat(document.getElementById('tar-radioKm').value)    || 3,
   };
   await DB.saveTarifas(t);
   actualizarEjemplos(t);
