@@ -60,8 +60,9 @@ function initApp() {
       document.getElementById('driver-sw').checked      = true;
       document.getElementById('driver-sub').textContent = 'Estás disponible';
       iniciarTracking();
+      // Cargar solicitudes al iniciar sesión
+      DB.rides().then(rides => renderSolicitudes(rides));
     }, 400);
-
   } else {
     rel.textContent  = '👤 Pasajero';
     rel.className    = 'role-chip role-pasajero';
