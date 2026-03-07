@@ -68,6 +68,31 @@ const DB = {
   saveSession:  s  => localStorage.setItem('tt_session', JSON.stringify(s)),
   clearSession: () => localStorage.removeItem('tt_session'),
 
+
+  /* ── TARIFAS ──────────────────────────────────────── */
+
+  getTarifas: async () => {
+    const snap = await firebase.database().ref('config/tarifas').get();
+    return snap.exists() ? snap.val() : {
+      porKm:      9,
+      minima:     30,
+      nocturna:   1.3,
+      horaInicio: 22,
+      horaFin:    6,
+      espera:     1,
+    };
+  },
+
+  saveTarifas: (tarifas) =>
+    firebase.database().ref('config/tarifas').set(tarifas),
+
+  onTarifas: (cb) =>
+    firebase.database().ref('config/tarifas').on('value', snap =>
+      cb(snap.exists() ? snap.val() : {
+        porKm: 9, minima: 30, nocturna: 1.3,
+        horaInicio: 22, horaFin: 6, espera: 1,
+      })
+    ),
   /* ── ALIAS ADMIN ──────────────────────────────────────── */
 
   getUsers: async () => {
