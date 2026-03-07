@@ -17,10 +17,17 @@ function showTab(id, btn) {
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (id === 't-rides')     cargarMisViajes();
+  if (id === 't-rides')    cargarMisViajes();
   if (id === 't-driver' && driverOn) DB.rides().then(rides => renderSolicitudes(rides));
-  if (id === 't-home')      setTimeout(() => map && map.invalidateSize(), 200);
+  if (id === 't-home')     setTimeout(() => map && map.invalidateSize(), 200);
   if (id === 't-ganancias') cargarGanancias();
+  // Al activar la pestaña En curso iniciar el mapa
+  if (id === 't-encurso') {
+    DB.rides().then(rides => {
+      const activo = rides.find(r => r.chofId === me.id && r.est === 'aceptado');
+      if (activo) setTimeout(() => initMapaEncurso(activo), 200);
+    });
+  }
 }
 
 // ── TOAST ─────────────────────────────────────────
@@ -66,6 +73,9 @@ function initApp() {
       DB.onRides(rides => {
         renderSolicitudes(rides);
         actualizarIconosChoferes(rides);
+        // Verificar si hay viaje aceptado para mostrar/ocultar pestaña En curso
+        const activo = rides.find(r => r.chofId === me.id && r.est === 'aceptado');
+        mostrarPestanaEncurso(activo || null);
       });
     }, 400);
 
@@ -77,7 +87,6 @@ function initApp() {
     document.getElementById('tab-inicio-btn').style.display    = 'block';
     setTimeout(initMapa, 350);
 
-    // Notificaciones en tiempo real
     DB.onNotifs(me.id, notifs => {
       notifs.forEach(n => {
         mostrarNotifBanner(n.msg);
@@ -94,7 +103,6 @@ function initApp() {
 
   refrescarPerfil();
 
-  // Restaurar tema
   const savedTheme = localStorage.getItem('tt_theme');
   if (savedTheme === 'light') {
     document.body.classList.add('light');
