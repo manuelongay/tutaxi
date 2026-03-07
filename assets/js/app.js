@@ -103,6 +103,7 @@ function initApp() {
     iniciarTrackingMapa();
   }
 
+  cargarTarifas();
   refrescarPerfil();
 
   const savedTheme = localStorage.getItem('tt_theme');
