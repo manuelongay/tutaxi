@@ -201,37 +201,7 @@ async function confirmarCancelacion(rideId, quien) {
 function renderSolicitudes(rides) {
   if (!driverOn) return;
   const pendientes = rides.filter(r => r.est === 'pendiente');
-  const aceptado   = rides.find(r => r.chofId === me.id && r.est === 'aceptado');
   const el         = document.getElementById('solicitudes-list');
-
-  // Si tiene un viaje aceptado mostrar ese con opción cancelar
-  if (aceptado) {
-    el.innerHTML = `<div class="avail-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
-        <span class="sec-label" style="margin:0;">Viaje en curso</span>
-        <span class="status-pill s-aceptado">Aceptado</span>
-      </div>
-      <div class="avail-user" style="margin-bottom:.8rem;">
-        <div class="avatar">${aceptado.pasNom[0]}</div>
-        <div>
-          <div style="font-weight:700;">${aceptado.pasNom}</div>
-          <div style="font-size:.78rem;color:var(--gray3);">${aceptado.pasTel}</div>
-        </div>
-        <div style="margin-left:auto;"><div class="price-val">$${aceptado.precio}</div></div>
-      </div>
-      <div class="from-lbl">📍 ${aceptado.origen}</div>
-      <div class="to-lbl" style="margin-top:.25rem;margin-bottom:.9rem;">🎯 ${aceptado.destino}</div>
-      <div style="display:flex;gap:.6rem;">
-        <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${aceptado.id}','chofer')">
-          Cancelar
-        </button>
-        <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${aceptado.id}')">
-          Completar ✓
-        </button>
-      </div>
-    </div>`;
-    return;
-  }
 
   if (!pendientes.length) {
     el.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Sin solicitudes</div></div>';
