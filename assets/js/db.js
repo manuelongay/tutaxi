@@ -80,6 +80,7 @@ const DB = {
       horaInicio: 22,
       horaFin:    6,
       espera:     1,
+      radioKm:    3,
     };
   },
 
@@ -90,7 +91,7 @@ const DB = {
     firebase.database().ref('config/tarifas').on('value', snap =>
       cb(snap.exists() ? snap.val() : {
         porKm: 9, minima: 30, nocturna: 1.3,
-        horaInicio: 22, horaFin: 6, espera: 1,
+        horaInicio: 22, horaFin: 6, espera: 1, radioKm: 3,
       })
     ),
   /* ── ALIAS ADMIN ──────────────────────────────────────── */
