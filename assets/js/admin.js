@@ -77,7 +77,7 @@ function renderRidesLive(rides){
 // ── VISTAS ─────────────────────────────────────────
 const viewTitles = {
   dashboard:'Dashboard', users:'Usuarios', passengers:'Pasajeros',
-  drivers:'Choferes', rides:'Viajes', mapa:'🗺️ Mapa en vivo',
+  drivers:'Choferes', rides:'Viajes', mapa:'🗺️ Mapa en vivo', tarifas:'💲 Tarifas',
 };
 
 function showView(name){
@@ -357,3 +357,48 @@ window.onload=()=>{
     if(mapaView&&mapaView.classList.contains('active')) actualizarMapaAdmin();
   },5000);
 };
+
+/* ============================================================
+   TARIFAS
+   ============================================================ */
+
+async function cargarTarifas() {
+  const t = await DB.getTarifas();
+  document.getElementById('tar-porKm').value      = t.porKm      ?? 9;
+  document.getElementById('tar-minima').value     = t.minima     ?? 30;
+  document.getElementById('tar-nocturna').value   = t.nocturna   ?? 1.3;
+  document.getElementById('tar-horaInicio').value = t.horaInicio ?? 22;
+  document.getElementById('tar-horaFin').value    = t.horaFin    ?? 6;
+  document.getElementById('tar-espera').value     = t.espera     ?? 1;
+  actualizarEjemplos(t);
+}
+
+async function guardarTarifas() {
+  const t = {
+    porKm:      parseFloat(document.getElementById('tar-porKm').value)      || 9,
+    minima:     parseFloat(document.getElementById('tar-minima').value)     || 30,
+    nocturna:   parseFloat(document.getElementById('tar-nocturna').value)   || 1.3,
+    horaInicio: parseInt(document.getElementById('tar-horaInicio').value)   || 22,
+    horaFin:    parseInt(document.getElementById('tar-horaFin').value)      || 6,
+    espera:     parseFloat(document.getElementById('tar-espera').value)     || 1,
+  };
+  await DB.saveTarifas(t);
+  actualizarEjemplos(t);
+  showToast('¡Tarifas actualizadas! ✅', 'success');
+}
+
+function actualizarEjemplos(t) {
+  const calc = (km, min, noche) => {
+    const mult = noche ? t.nocturna : 1;
+    return Math.max(t.minima, Math.round(km * t.porKm * mult + min * t.espera));
+  };
+  const ej = document.getElementById('tar-ejemplos');
+  if (!ej) return;
+  ej.innerHTML = `
+    <div class="tar-ejemplo"><span>2 km · día</span><strong>$${calc(2, 0, false)}</strong></div>
+    <div class="tar-ejemplo"><span>5 km · día</span><strong>$${calc(5, 0, false)}</strong></div>
+    <div class="tar-ejemplo"><span>10 km · día</span><strong>$${calc(10, 0, false)}</strong></div>
+    <div class="tar-ejemplo"><span>2 km · noche</span><strong>$${calc(2, 0, true)}</strong></div>
+    <div class="tar-ejemplo"><span>5 km · noche</span><strong>$${calc(5, 0, true)}</strong></div>
+    <div class="tar-ejemplo"><span>10 km · noche</span><strong>$${calc(10, 0, true)}</strong></div>`;
+}
