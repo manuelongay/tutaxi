@@ -17,9 +17,9 @@ function showTab(id, btn) {
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (id === 't-rides')    cargarMisViajes();
-  if (id === 't-driver' && driverOn) renderSolicitudes([]);
-  if (id === 't-home')     setTimeout(() => map && map.invalidateSize(), 200);
+  if (id === 't-rides')     cargarMisViajes();
+  if (id === 't-driver' && driverOn) DB.rides().then(rides => renderSolicitudes(rides));
+  if (id === 't-home')      setTimeout(() => map && map.invalidateSize(), 200);
   if (id === 't-ganancias') cargarGanancias();
 }
 
@@ -60,9 +60,15 @@ function initApp() {
       document.getElementById('driver-sw').checked      = true;
       document.getElementById('driver-sub').textContent = 'Estás disponible';
       iniciarTracking();
-      // Cargar solicitudes al iniciar sesión
       DB.rides().then(rides => renderSolicitudes(rides));
+
+      // onRides dentro del setTimeout — driverOn ya es true aquí
+      DB.onRides(rides => {
+        renderSolicitudes(rides);
+        actualizarIconosChoferes(rides);
+      });
     }, 400);
+
   } else {
     rel.textContent  = '👤 Pasajero';
     rel.className    = 'role-chip role-pasajero';
@@ -78,14 +84,13 @@ function initApp() {
         DB.markNotifRead(n.id);
       });
     });
-  }
 
-  // Viajes en tiempo real
-  DB.onRides(rides => {
-    if (me.rol === 'pasajero') renderViajeActivo(rides);
-    if (me.rol === 'chofer' && driverOn) renderSolicitudes(rides);
-    actualizarIconosChoferes(rides);
-  });
+    // onRides solo para pasajero
+    DB.onRides(rides => {
+      renderViajeActivo(rides);
+      actualizarIconosChoferes(rides);
+    });
+  }
 
   refrescarPerfil();
 
@@ -100,14 +105,12 @@ function initApp() {
 
 // ── ARRANQUE ──────────────────────────────────────
 window.addEventListener('load', async () => {
-  // Restaurar tema antes de mostrar nada
   if (localStorage.getItem('tt_theme') === 'light') {
     document.body.classList.add('light');
     const btn = document.getElementById('theme-btn');
     if (btn) btn.textContent = '☀️';
   }
 
-  // Restaurar sesión
   const s = DB.session();
   if (s) {
     const u = await DB.getUser(s.id);
