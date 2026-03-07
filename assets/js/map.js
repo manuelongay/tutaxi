@@ -7,6 +7,21 @@ let map = null, markerO = null, markerD = null, routeLine = null;
 let coordO = null, coordD = null, pinMode = null;
 let ddTimers = {}, ddRes = { origen: [], destino: [] };
 let marcadoresChoferes = {};
+let tarifasCache = { porKm: 9, minima: 30, nocturna: 1.3, horaInicio: 22, horaFin: 6, espera: 1 };
+
+// Cargar tarifas desde Firebase al iniciar
+function cargarTarifas() {
+  DB.onTarifas(t => { tarifasCache = t; });
+}
+
+function calcularPrecio(km, minutos) {
+  const hora   = new Date().getHours();
+  const noche  = hora >= tarifasCache.horaInicio || hora < tarifasCache.horaFin;
+  const mult   = noche ? tarifasCache.nocturna : 1;
+  const base   = parseFloat(km) * tarifasCache.porKm * mult;
+  const espera = (minutos || 0) * tarifasCache.espera;
+  return Math.max(tarifasCache.minima, Math.round(base + espera));
+}
 
 // ── INICIALIZACIÓN ────────────────────────────────
 function initMapa() {
@@ -97,7 +112,7 @@ function trazarRuta() {
     map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
     const km  = (r.distance / 1000).toFixed(1);
     const min = Math.round(r.duration / 60);
-    const sug = Math.max(30, Math.round(parseFloat(km) * 9));
+    const sug = calcularPrecio(km, min);
     document.getElementById('ri-dist').textContent = km + ' km';
     document.getElementById('ri-time').textContent = min + ' min';
     document.getElementById('ri-sug').textContent  = '$' + sug;
@@ -114,7 +129,7 @@ function rutaLinea() {
   const km  = (d / 1000).toFixed(1);
   document.getElementById('ri-dist').textContent = km + ' km';
   document.getElementById('ri-time').textContent = Math.round(d / 300) + ' min';
-  document.getElementById('ri-sug').textContent  = '$' + Math.max(30, Math.round(parseFloat(km) * 9));
+  document.getElementById('ri-sug').textContent  = '$' + calcularPrecio(km, 0);
   document.getElementById('route-info').classList.add('on');
 }
 
