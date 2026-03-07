@@ -76,6 +76,11 @@
       <div class="nav-icon">🗺️</div> Mapa en vivo
       <span class="nav-badge" id="badge-online" style="background:var(--green);color:#000;">0</span>
     </div>
+
+    <div class="nav-section-title">Configuración</div>
+    <div class="nav-item" onclick="showView('tarifas');cargarTarifas()">
+      <div class="nav-icon">💲</div> Tarifas
+    </div>
   </nav>
 
   <div class="sidebar-footer">
@@ -284,6 +289,61 @@
 
   </div>
 </div>
+
+  <!-- TARIFAS -->
+  <div id="view-tarifas" class="view">
+    <div class="section-header">
+      <h2>Tarifas</h2>
+      <p>Configura los precios que se calculan automáticamente al solicitar un viaje</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:860px;">
+      <div class="table-wrap" style="padding:1.5rem;">
+        <div class="table-title" style="margin-bottom:1.2rem;">💰 Tarifa base</div>
+        <div class="form-group">
+          <label class="form-label">Precio por kilómetro ($)</label>
+          <input type="number" class="form-input" id="tar-porKm" min="1" step="0.5" placeholder="9">
+          <div style="font-size:.75rem;color:var(--gray3);margin-top:.3rem;">Se multiplica por la distancia del viaje</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tarifa mínima ($)</label>
+          <input type="number" class="form-input" id="tar-minima" min="1" step="1" placeholder="30">
+          <div style="font-size:.75rem;color:var(--gray3);margin-top:.3rem;">Precio mínimo sin importar la distancia</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Costo por minuto de espera ($)</label>
+          <input type="number" class="form-input" id="tar-espera" min="0" step="0.5" placeholder="1">
+          <div style="font-size:.75rem;color:var(--gray3);margin-top:.3rem;">Se suma al precio base por cada minuto estimado</div>
+        </div>
+      </div>
+      <div class="table-wrap" style="padding:1.5rem;">
+        <div class="table-title" style="margin-bottom:1.2rem;">🌙 Tarifa nocturna</div>
+        <div class="form-group">
+          <label class="form-label">Multiplicador nocturno</label>
+          <input type="number" class="form-input" id="tar-nocturna" min="1" step="0.1" placeholder="1.3">
+          <div style="font-size:.75rem;color:var(--gray3);margin-top:.3rem;">Ej: 1.3 = 30% más caro en horario nocturno</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Hora inicio nocturno (0-23)</label>
+          <input type="number" class="form-input" id="tar-horaInicio" min="0" max="23" step="1" placeholder="22">
+          <div style="font-size:.75rem;color:var(--gray3);margin-top:.3rem;">Ejemplo: 22 = a partir de las 10 PM</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Hora fin nocturno (0-23)</label>
+          <input type="number" class="form-input" id="tar-horaFin" min="0" max="23" step="1" placeholder="6">
+          <div style="font-size:.75rem;color:var(--gray3);margin-top:.3rem;">Ejemplo: 6 = hasta las 6 AM</div>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:860px;margin-top:1rem;">
+      <button class="btn btn-primary" onclick="guardarTarifas()" style="padding:.85rem 2.5rem;font-size:1rem;">
+        💾 Guardar tarifas
+      </button>
+    </div>
+    <div class="table-wrap" style="max-width:860px;margin-top:1.5rem;padding:1.5rem;">
+      <div class="table-title" style="margin-bottom:1rem;">📊 Ejemplos de precios calculados</div>
+      <div id="tar-ejemplos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;"></div>
+    </div>
+  </div>
 
 <!-- ═══════════════════════════════════════ MODAL ═══ -->
 <div class="modal-overlay" id="user-modal">
