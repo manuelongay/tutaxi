@@ -26,11 +26,15 @@ function iniciarTracking() {
   setInterval(() => {
     if (!me || me.rol !== 'chofer' || !driverOn) return;
     navigator.geolocation.getCurrentPosition(pos => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
       DB.updateUser(me.id, {
-        lastLat:    pos.coords.latitude,
-        lastLng:    pos.coords.longitude,
+        lastLat:    lat,
+        lastLng:    lng,
         lastUpdate: Date.now()
       });
+      // Actualizar posición en mapa En curso si está activo
+      actualizarPosicionChoferEncurso(lat, lng);
     }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
   }, 5000);
 }
