@@ -7,7 +7,7 @@ let map = null, markerO = null, markerD = null, routeLine = null;
 let coordO = null, coordD = null, pinMode = null;
 let ddTimers = {}, ddRes = { origen: [], destino: [] };
 let marcadoresChoferes = {};
-let tarifasCache = { porKm: 9, minima: 30, nocturna: 1.3, horaInicio: 22, horaFin: 6, espera: 1 };
+let tarifasCache = { porKm: 9, minima: 30, nocturna: 1.3, horaInicio: 22, horaFin: 6, espera: 1, radioKm: 3 };
 
 // Cargar tarifas desde Firebase al iniciar
 function cargarTarifas() {
@@ -261,20 +261,56 @@ async function actualizarIconosChoferes(rides) {
 
 // ── TRACKING EN TIEMPO REAL DE CHOFERES ──────────
 // Escucha cambios en users para actualizar posiciones en el mapa del pasajero
+// ── DISTANCIA HAVERSINE (km entre dos coordenadas) ──
+function distanciaKm(lat1, lng1, lat2, lng2) {
+  const R  = 6371;
+  const dL = (lat2 - lat1) * Math.PI / 180;
+  const dG = (lng2 - lng1) * Math.PI / 180;
+  const a  = Math.sin(dL/2) * Math.sin(dL/2) +
+             Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+             Math.sin(dG/2) * Math.sin(dG/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
 function iniciarTrackingMapa() {
   DB.onUsers(async users => {
     if (!map) return;
     const rides    = await DB.rides();
-    const choferes = users.filter(u => u.rol === 'chofer' && u.estatus === 'activo' && u.lastLat);
+    const radioKm  = tarifasCache.radioKm || 3;
+
+    // Obtener centro del mapa (posición del pasajero)
+    const centro = map.getCenter();
+
+    const choferes = users.filter(u => {
+      if (u.rol !== 'chofer' || u.estatus !== 'activo' || !u.lastLat) return false;
+      // Filtrar por radio de distancia
+      const dist = distanciaKm(centro.lat, centro.lng, u.lastLat, u.lastLng);
+      return dist <= radioKm;
+    });
+
+    // Eliminar marcadores de choferes que ya no están en el radio
+    Object.keys(marcadoresChoferes).forEach(id => {
+      const sigueActivo = choferes.find(c => c.id === id);
+      if (!sigueActivo) {
+        map.removeLayer(marcadoresChoferes[id]);
+        delete marcadoresChoferes[id];
+      }
+    });
+
     choferes.forEach(chofer => {
       const tieneViaje = rides.some(r => r.chofId === chofer.id && r.est === 'aceptado');
       const lat = chofer.lastLat, lng = chofer.lastLng;
+      const dist = distanciaKm(centro.lat, centro.lng, lat, lng).toFixed(1);
+
       if (marcadoresChoferes[chofer.id]) {
         marcadoresChoferes[chofer.id].setLatLng([lat, lng]);
         marcadoresChoferes[chofer.id].setIcon(iconoVehiculo(tieneViaje));
       } else {
         const m = L.marker([lat, lng], { icon: iconoVehiculo(tieneViaje), zIndexOffset: 100 }).addTo(map);
-        m.bindTooltip(`🚗 ${chofer.nom} ${chofer.ape || ''}<br>${chofer.veh || ''} | ${chofer.pla || ''}`, { permanent: false, direction: 'top' });
+        m.bindTooltip(
+          `🚗 ${chofer.nom} ${chofer.ape || ''}<br>${chofer.veh || ''} | ${chofer.pla || ''}<br>📍 ${dist} km`,
+          { permanent: false, direction: 'top' }
+        );
         marcadoresChoferes[chofer.id] = m;
       }
     });
