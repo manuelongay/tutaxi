@@ -121,3 +121,16 @@ tr:hover td { background: rgba(255,255,255,.02); }
   .sidebar.open { transform: translateX(0); }
   .main { margin-left: 0; }
 }
+
+/* ── TARIFAS ──────────────────────────────────────── */
+.tar-ejemplo {
+  background: var(--gray2);
+  border-radius: 10px;
+  padding: .75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .85rem;
+}
+.tar-ejemplo span { color: var(--gray3); }
+.tar-ejemplo strong { color: var(--accent); font-size: 1rem; }
