@@ -3,6 +3,23 @@
    Lógica de solicitud, aceptación y gestión de viajes
    ============================================================ */
 
+// ── MOTIVOS DE CANCELACIÓN ────────────────────────
+const MOTIVOS_PASAJERO = [
+  'El chofer tardó demasiado',
+  'Me equivoqué de destino',
+  'Encontré otro transporte',
+  'Cambié de planes',
+  'Otro motivo',
+];
+
+const MOTIVOS_CHOFER = [
+  'El pasajero no apareció',
+  'El pasajero canceló por otro medio',
+  'Problema con el vehículo',
+  'Emergencia personal',
+  'Otro motivo',
+];
+
 // ── PRECIO ────────────────────────────────────────
 function setPrice(v) { document.getElementById('price-show').textContent = '$' + v; }
 
@@ -59,8 +76,19 @@ function renderViajeActivo(rides) {
         <div><div class="price-lbl">Tu oferta</div><div class="price-val">$${activo.precio}</div></div>
         ${activo.chofNom ? `<div><div class="price-lbl">Chofer</div><div style="font-weight:700;">${activo.chofNom}</div><div style="font-size:.75rem;color:var(--gray3);">${activo.veh || ''} ${activo.pla ? '| ' + activo.pla : ''}</div></div>` : ''}
       </div>
-      ${activo.est === 'pendiente' ? `<button class="btn btn-danger btn-full" onclick="cancelarViaje('${activo.id}')">Cancelar solicitud</button>` : ''}
-      ${activo.est === 'aceptado'  ? `<button class="btn btn-success btn-full" onclick="completarViaje('${activo.id}')">Marcar completado ✓</button>` : ''}
+      <div style="display:flex;gap:.6rem;margin-top:.5rem;">
+        ${activo.est === 'pendiente' ? `
+          <button class="btn btn-danger btn-full" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
+            Cancelar solicitud
+          </button>` : ''}
+        ${activo.est === 'aceptado' ? `
+          <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
+            Cancelar
+          </button>
+          <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${activo.id}')">
+            Marcar completado ✓
+          </button>` : ''}
+      </div>
     </div>`;
   } else {
     const completado = rides.find(r => r.pasId === me.id && r.est === 'completado' && !r.calificacion);
@@ -69,25 +97,147 @@ function renderViajeActivo(rides) {
   }
 }
 
-async function cancelarViaje(id) {
-  await DB.updateRide(id, { est: 'cancelado' });
-  toast('Viaje cancelado');
-}
-
 async function completarViaje(id) {
   await DB.updateRide(id, { est: 'completado' });
   toast('¡Completado! ⭐', 'ok');
+}
+
+// ── MODAL CANCELACIÓN ─────────────────────────────
+function mostrarModalCancelacion(rideId, quien) {
+  if (document.getElementById('modal-cancelacion')) return;
+  const motivos = quien === 'pasajero' ? MOTIVOS_PASAJERO : MOTIVOS_CHOFER;
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-cancelacion';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;z-index:99999;padding:1rem;backdrop-filter:blur(4px);';
+  modal.innerHTML = `
+    <div style="background:var(--gray);border:1px solid rgba(255,255,255,.1);border-radius:24px 24px 0 0;padding:2rem;width:100%;max-width:440px;">
+      <div style="font-size:1.1rem;font-weight:700;margin-bottom:.3rem;">¿Por qué cancelas? 😕</div>
+      <div style="font-size:.85rem;color:var(--gray3);margin-bottom:1.5rem;">Selecciona el motivo de cancelación</div>
+      <div id="motivos-list" style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.5rem;">
+        ${motivos.map((m, i) => `
+          <div class="motivo-item" onclick="selMotivo(${i})" data-idx="${i}"
+            style="padding:.85rem 1rem;border-radius:12px;border:1.5px solid rgba(255,255,255,.08);cursor:pointer;font-size:.9rem;display:flex;align-items:center;gap:.8rem;transition:all .15s;">
+            <div class="motivo-radio" style="width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.3);flex-shrink:0;"></div>
+            ${m}
+          </div>`).join('')}
+      </div>
+      <div id="otro-motivo-wrap" style="display:none;margin-bottom:1.2rem;">
+        <textarea id="otro-motivo-txt" placeholder="Describe el motivo..."
+          style="width:100%;background:var(--gray2);border:1.5px solid rgba(255,255,255,.08);border-radius:10px;color:var(--white);padding:.75rem;font-size:.88rem;resize:none;height:80px;outline:none;box-sizing:border-box;"></textarea>
+      </div>
+      <button onclick="confirmarCancelacion('${rideId}','${quien}')" class="btn btn-danger btn-full" style="margin-bottom:.8rem;">
+        Confirmar cancelación
+      </button>
+      <button onclick="document.getElementById('modal-cancelacion').remove()"
+        style="width:100%;background:none;border:none;color:var(--gray3);cursor:pointer;font-size:.88rem;">
+        Volver
+      </button>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+let motivoSelIdx = -1;
+
+function selMotivo(idx) {
+  motivoSelIdx = idx;
+  document.querySelectorAll('.motivo-item').forEach((el, i) => {
+    const radio = el.querySelector('.motivo-radio');
+    const sel   = i === idx;
+    el.style.borderColor    = sel ? 'var(--accent)' : 'rgba(255,255,255,.08)';
+    el.style.background     = sel ? 'rgba(245,197,24,.08)' : '';
+    radio.style.borderColor = sel ? 'var(--accent)' : 'rgba(255,255,255,.3)';
+    radio.style.background  = sel ? 'var(--accent)' : '';
+  });
+  const motivos = document.querySelectorAll('.motivo-item');
+  document.getElementById('otro-motivo-wrap').style.display =
+    idx === motivos.length - 1 ? 'block' : 'none';
+}
+
+async function confirmarCancelacion(rideId, quien) {
+  if (motivoSelIdx === -1) { toast('Selecciona un motivo', 'err'); return; }
+
+  const motivos = quien === 'pasajero' ? MOTIVOS_PASAJERO : MOTIVOS_CHOFER;
+  let motivo    = motivos[motivoSelIdx];
+  const esOtro  = motivoSelIdx === motivos.length - 1;
+
+  if (esOtro) {
+    const txt = document.getElementById('otro-motivo-txt').value.trim();
+    if (!txt) { toast('Describe el motivo', 'err'); return; }
+    motivo = txt;
+  }
+
+  const rides = await DB.rides();
+  const ride  = rides.find(r => r.id === rideId);
+
+  await DB.updateRide(rideId, {
+    est:               'cancelado',
+    canceladoPor:      quien,
+    motivoCancelacion: motivo,
+    fechaCancelacion:  new Date().toISOString(),
+  });
+
+  // Notificar a la otra parte
+  if (ride) {
+    const destinatarioId = quien === 'pasajero' ? ride.chofId : ride.pasId;
+    if (destinatarioId) {
+      const quienNom = quien === 'pasajero' ? ride.pasNom : ride.chofNom;
+      await DB.saveNotif({
+        id:    'n_' + Date.now(),
+        pasId: destinatarioId,
+        msg:   `❌ ${quienNom} canceló el viaje. Motivo: "${motivo}"`,
+        leida: false,
+        fecha: new Date().toISOString(),
+      });
+    }
+  }
+
+  document.getElementById('modal-cancelacion').remove();
+  motivoSelIdx = -1;
+  toast('Viaje cancelado');
 }
 
 // ── RENDER SOLICITUDES (CHOFER) ───────────────────
 function renderSolicitudes(rides) {
   if (!driverOn) return;
   const pendientes = rides.filter(r => r.est === 'pendiente');
-  const el = document.getElementById('solicitudes-list');
+  const aceptado   = rides.find(r => r.chofId === me.id && r.est === 'aceptado');
+  const el         = document.getElementById('solicitudes-list');
+
+  // Si tiene un viaje aceptado mostrar ese con opción cancelar
+  if (aceptado) {
+    el.innerHTML = `<div class="avail-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
+        <span class="sec-label" style="margin:0;">Viaje en curso</span>
+        <span class="status-pill s-aceptado">Aceptado</span>
+      </div>
+      <div class="avail-user" style="margin-bottom:.8rem;">
+        <div class="avatar">${aceptado.pasNom[0]}</div>
+        <div>
+          <div style="font-weight:700;">${aceptado.pasNom}</div>
+          <div style="font-size:.78rem;color:var(--gray3);">${aceptado.pasTel}</div>
+        </div>
+        <div style="margin-left:auto;"><div class="price-val">$${aceptado.precio}</div></div>
+      </div>
+      <div class="from-lbl">📍 ${aceptado.origen}</div>
+      <div class="to-lbl" style="margin-top:.25rem;margin-bottom:.9rem;">🎯 ${aceptado.destino}</div>
+      <div style="display:flex;gap:.6rem;">
+        <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${aceptado.id}','chofer')">
+          Cancelar
+        </button>
+        <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${aceptado.id}')">
+          Completar ✓
+        </button>
+      </div>
+    </div>`;
+    return;
+  }
+
   if (!pendientes.length) {
     el.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Sin solicitudes</div></div>';
     return;
   }
+
   el.innerHTML = pendientes.map(r => `<div class="avail-card">
     <div class="avail-user">
       <div class="avatar">${r.pasNom[0]}</div>
@@ -114,7 +264,12 @@ async function cargarMisViajes() {
       <div><div class="from-lbl">📍 ${r.origen}</div><div class="to-lbl">🎯 ${r.destino}</div></div>
       <span class="status-pill s-${r.est}">${sLabel(r.est)}</span>
     </div>
-    <div class="ride-bot"><span class="ride-price">$${r.precio}</span><span class="ride-date">${new Date(r.fecha).toLocaleDateString('es-MX')}</span></div>
+    <div class="ride-bot">
+      <span class="ride-price">$${r.precio}</span>
+      <span class="ride-date">${new Date(r.fecha).toLocaleDateString('es-MX')}</span>
+      ${r.canceladoPor ? `<span style="font-size:.72rem;color:var(--gray3);">Canceló: ${r.canceladoPor === 'pasajero' ? '👤 Pasajero' : '🚗 Chofer'}</span>` : ''}
+    </div>
+    ${r.motivoCancelacion ? `<div style="font-size:.75rem;color:var(--gray3);margin-top:.3rem;padding-top:.5rem;border-top:1px solid rgba(255,255,255,.05);">Motivo: ${r.motivoCancelacion}</div>` : ''}
   </div>`).join('');
 }
 
