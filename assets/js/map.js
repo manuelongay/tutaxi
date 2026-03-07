@@ -243,3 +243,55 @@ async function actualizarIconosChoferes(rides) {
     }
   });
 }
+
+// ── TRACKING EN TIEMPO REAL DE CHOFERES ──────────
+// Escucha cambios en users para actualizar posiciones en el mapa del pasajero
+function iniciarTrackingMapa() {
+  DB.onUsers(async users => {
+    if (!map) return;
+    const rides    = await DB.rides();
+    const choferes = users.filter(u => u.rol === 'chofer' && u.estatus === 'activo' && u.lastLat);
+    choferes.forEach(chofer => {
+      const tieneViaje = rides.some(r => r.chofId === chofer.id && r.est === 'aceptado');
+      const lat = chofer.lastLat, lng = chofer.lastLng;
+      if (marcadoresChoferes[chofer.id]) {
+        marcadoresChoferes[chofer.id].setLatLng([lat, lng]);
+        marcadoresChoferes[chofer.id].setIcon(iconoVehiculo(tieneViaje));
+      } else {
+        const m = L.marker([lat, lng], { icon: iconoVehiculo(tieneViaje), zIndexOffset: 100 }).addTo(map);
+        m.bindTooltip(`🚗 ${chofer.nom} ${chofer.ape || ''}<br>${chofer.veh || ''} | ${chofer.pla || ''}`, { permanent: false, direction: 'top' });
+        marcadoresChoferes[chofer.id] = m;
+      }
+    });
+  });
+}
+
+// ── MARCADOR DEL CONDUCTOR EN MAPA EN CURSO ───────
+let markerChoferEncurso = null;
+
+function actualizarPosicionChoferEncurso(lat, lng) {
+  if (!mapEncurso) return;
+  const iconoChofer = L.divIcon({
+    html: `<div style="position:relative;filter:drop-shadow(0 2px 8px rgba(34,197,94,.6));">
+      <svg viewBox="0 0 64 64" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="28" width="48" height="20" rx="6" fill="#22c55e"/>
+        <path d="M18 28 L22 14 L42 14 L46 28 Z" fill="#22c55e" opacity=".85"/>
+        <path d="M23 27 L26 16 L38 16 L41 27 Z" fill="#cceeff" opacity=".7"/>
+        <circle cx="18" cy="48" r="7" fill="#222"/><circle cx="18" cy="48" r="3.5" fill="#888"/>
+        <circle cx="46" cy="48" r="7" fill="#222"/><circle cx="46" cy="48" r="3.5" fill="#888"/>
+        <rect x="8" y="32" width="5" height="4" rx="1" fill="#fff9"/>
+        <rect x="51" y="32" width="5" height="4" rx="1" fill="#ff09"/>
+      </svg>
+      <div style="position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid #000;box-shadow:0 0 6px #22c55e;"></div>
+    </div>`,
+    className: '', iconSize: [40, 40], iconAnchor: [20, 40],
+  });
+
+  if (markerChoferEncurso) {
+    markerChoferEncurso.setLatLng([lat, lng]);
+  } else {
+    markerChoferEncurso = L.marker([lat, lng], { icon: iconoChofer, zIndexOffset: 200 })
+      .bindTooltip('📍 Tu posición', { permanent: false, direction: 'top' })
+      .addTo(mapEncurso);
+  }
+}
