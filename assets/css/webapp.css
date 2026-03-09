@@ -141,3 +141,26 @@ body.light .price-box   { background: #e8e8e8; }
 body.light .chips .chip { background: #e8e8e8; border-color: #ccc; }
 body.light .user-badge  { background: #e8e8e8; }
 body.light #map         { border-color: #ccc; }
+
+/* ── BOTÓN GOOGLE ──────────────────────────────── */
+.btn-google {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .7rem;
+  padding: .75rem 1rem;
+  background: #fff;
+  color: #3c4043;
+  border: 1.5px solid #dadce0;
+  border-radius: 12px;
+  font-size: .95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow .2s, background .2s;
+  font-family: 'DM Sans', sans-serif;
+}
+.btn-google:hover {
+  box-shadow: 0 2px 10px rgba(0,0,0,.15);
+  background: #f8f9fa;
+}
