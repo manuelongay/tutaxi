@@ -57,10 +57,61 @@ async function doLogin() {
   const pass  = document.getElementById('l-pass').value;
 
   try {
+    // Intentar login normal con Firebase Auth
     const cred = await firebase.auth().signInWithEmailAndPassword(email, pass);
     await cargarSesionFirebase(cred.user);
   } catch (e) {
-    toast(firebaseAuthError(e.code), 'err');
+    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+      // Usuario no existe en Firebase Auth — intentar migración desde DB
+      await migrarUsuarioLegacy(email, pass);
+    } else {
+      toast(firebaseAuthError(e.code), 'err');
+    }
+  }
+}
+
+// ── MIGRACIÓN DE USUARIOS LEGACY ─────────────────
+async function migrarUsuarioLegacy(email, pass) {
+  toast('Verificando cuenta...', '');
+  try {
+    // Buscar en Realtime Database (sistema anterior)
+    const users  = await DB.users();
+    const legacy = users.find(u => u.email === email && u.pass === pass);
+
+    if (!legacy) {
+      toast('Datos incorrectos', 'err');
+      return;
+    }
+    if (legacy.estatus === 'bloqueado') {
+      toast('Cuenta bloqueada', 'err');
+      return;
+    }
+
+    // Crear usuario en Firebase Auth con el mismo email/pass
+    const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
+    const uid  = cred.user.uid;
+
+    // Actualizar el perfil en DB con el nuevo uid de Firebase Auth
+    // Conservar todos los datos existentes
+    const userActualizado = { ...legacy, id: uid, migrado: true };
+
+    // Eliminar el registro viejo si el id era diferente
+    if (legacy.id !== uid) {
+      await firebase.database().ref('users/' + legacy.id).remove();
+    }
+
+    await DB.saveUser(userActualizado);
+    DB.saveSession(userActualizado);
+    me = userActualizado;
+
+    toast('¡Cuenta migrada exitosamente! Bienvenido, ' + legacy.nom + ' 👋', 'ok');
+    initApp();
+  } catch (e) {
+    if (e.code === 'auth/email-already-in-use') {
+      toast('Este correo ya tiene cuenta en el nuevo sistema. Usa "¿Olvidaste tu contraseña?" si no recuerdas tu acceso.', 'err');
+    } else {
+      toast(firebaseAuthError(e.code), 'err');
+    }
   }
 }
 
