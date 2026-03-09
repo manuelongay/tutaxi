@@ -311,7 +311,7 @@ async function actualizarMapaAdmin(){
     const tieneViaje=rides.some(r=>r.chofId===chofer.id&&r.est==='aceptado');
     const lat=chofer.lastLat,lng=chofer.lastLng;
     const segs=chofer.lastUpdate?Math.round((Date.now()-chofer.lastUpdate)/1000):null;
-    if(segs!==null&&segs>300) return;
+    if(segs!==null&&segs>1800) return;
     online++; if(tieneViaje) ocupados++; else libres++;
     bounds.push([lat,lng]);
 
