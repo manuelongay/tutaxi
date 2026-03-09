@@ -111,6 +111,7 @@ function actualizarMapaEncurso(ride) {
 
 // ── MOSTRAR / OCULTAR PESTAÑA EN CURSO ────────────
 function mostrarPestanaEncurso(ride) {
+  if (!me || me.rol !== 'chofer') return;
   const btn  = document.getElementById('tab-encurso-btn');
   const wrap = document.getElementById('encurso-wrap');
   const empty = document.getElementById('encurso-empty');
