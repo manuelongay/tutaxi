@@ -1,8 +1,9 @@
 /* ============================================================
-   tuTaxi — auth.js
-   Registro, login y sesión de usuario
+   tuTaxi — auth.js  v5.0
+   Autenticación con Firebase Auth (email/pass + Google)
    ============================================================ */
 
+// ── REGISTRO CON EMAIL/CONTRASEÑA ─────────────────
 async function doRegister() {
   const nom   = document.getElementById('r-nom').value.trim();
   const ape   = document.getElementById('r-ape').value.trim();
@@ -14,55 +15,184 @@ async function doRegister() {
   if (!nom || !email || !pass || !tel) { toast('Completa todos los campos', 'err'); return; }
   if (pass.length < 6) { toast('Contraseña mínimo 6 caracteres', 'err'); return; }
 
-  const users = await DB.users();
-  if (users.find(u => u.email === email)) { toast('Correo ya registrado', 'err'); return; }
+  try {
+    // Crear usuario en Firebase Auth
+    const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
+    const uid  = cred.user.uid;
+
+    const user = {
+      id: uid,
+      nom, ape, nombre: nom, apellido: ape,
+      email, tel, telefono: tel,
+      rol, estatus: 'activo',
+      fecha: new Date().toISOString(),
+      fechaRegistro: new Date().toISOString(),
+      provider: 'email',
+    };
+
+    if (rol === 'chofer') {
+      const veh = document.getElementById('r-veh').value.trim();
+      const pla = document.getElementById('r-pla').value.trim();
+      if (!veh || !pla) { toast('Completa datos del vehículo', 'err'); return; }
+      user.veh = veh;  user.vehiculo  = veh;
+      user.pla = pla;  user.placas    = pla;
+      user.col = document.getElementById('r-col').value.trim(); user.color    = user.col;
+      user.lic = document.getElementById('r-lic').value.trim(); user.licencia = user.lic;
+      user.estatusChofer = 'activo';
+    }
+
+    await DB.saveUser(user);
+    DB.saveSession(user);
+    me = user;
+    toast('¡Cuenta creada! 🎉', 'ok');
+    initApp();
+  } catch (e) {
+    toast(firebaseAuthError(e.code), 'err');
+  }
+}
+
+// ── LOGIN CON EMAIL/CONTRASEÑA ────────────────────
+async function doLogin() {
+  const email = document.getElementById('l-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('l-pass').value;
+
+  try {
+    const cred = await firebase.auth().signInWithEmailAndPassword(email, pass);
+    await cargarSesionFirebase(cred.user);
+  } catch (e) {
+    toast(firebaseAuthError(e.code), 'err');
+  }
+}
+
+// ── LOGIN CON GOOGLE ──────────────────────────────
+async function doLoginGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    const cred = await firebase.auth().signInWithPopup(provider);
+    const u    = cred.user;
+
+    // Verificar si ya existe en la DB
+    let user = await DB.getUser(u.uid);
+
+    if (!user) {
+      // Primera vez — necesita elegir rol
+      // Guardar datos temporales y mostrar pantalla de selección de rol
+      window._googleUser = {
+        id:    u.uid,
+        nom:   u.displayName?.split(' ')[0] || '',
+        ape:   u.displayName?.split(' ').slice(1).join(' ') || '',
+        nombre: u.displayName?.split(' ')[0] || '',
+        apellido: u.displayName?.split(' ').slice(1).join(' ') || '',
+        email: u.email,
+        tel:   u.phoneNumber || '',
+        foto:  u.photoURL || '',
+        provider: 'google',
+        estatus: 'activo',
+        fecha: new Date().toISOString(),
+        fechaRegistro: new Date().toISOString(),
+      };
+      go('register-google');
+    } else {
+      if (user.estatus === 'bloqueado') {
+        toast('Cuenta bloqueada', 'err');
+        await firebase.auth().signOut();
+        return;
+      }
+      DB.saveSession(user);
+      me = user;
+      toast('¡Bienvenido, ' + user.nom + '! 👋', 'ok');
+      initApp();
+    }
+  } catch (e) {
+    if (e.code !== 'auth/popup-closed-by-user') {
+      toast(firebaseAuthError(e.code), 'err');
+    }
+  }
+}
+
+// ── COMPLETAR REGISTRO GOOGLE ─────────────────────
+async function completarRegistroGoogle() {
+  const rol = document.getElementById('rg-rol').value;
+  const tel = document.getElementById('rg-tel').value.trim();
+
+  if (!tel) { toast('Ingresa tu teléfono', 'err'); return; }
 
   const user = {
-    id: 'u_' + Date.now(),
-    nom, ape, nombre: nom, apellido: ape,
-    email, tel, telefono: tel,
-    pass, rol,
-    estatus: 'activo',
-    fecha: new Date().toISOString(),
-    fechaRegistro: new Date().toISOString(),
+    ...window._googleUser,
+    id:  window._googleUser.id,
+    tel, telefono: tel,
+    rol,
   };
 
   if (rol === 'chofer') {
-    const veh = document.getElementById('r-veh').value.trim();
-    const pla = document.getElementById('r-pla').value.trim();
+    const veh = document.getElementById('rg-veh').value.trim();
+    const pla = document.getElementById('rg-pla').value.trim();
     if (!veh || !pla) { toast('Completa datos del vehículo', 'err'); return; }
-    user.veh = veh;   user.vehiculo  = veh;
-    user.pla = pla;   user.placas    = pla;
-    user.col = document.getElementById('r-col').value.trim(); user.color    = user.col;
-    user.lic = document.getElementById('r-lic').value.trim(); user.licencia = user.lic;
+    user.veh = veh;  user.vehiculo  = veh;
+    user.pla = pla;  user.placas    = pla;
+    user.col = document.getElementById('rg-col').value.trim(); user.color    = user.col;
+    user.lic = document.getElementById('rg-lic').value.trim(); user.licencia = user.lic;
     user.estatusChofer = 'activo';
   }
 
   await DB.saveUser(user);
   DB.saveSession(user);
   me = user;
+  window._googleUser = null;
   toast('¡Cuenta creada! 🎉', 'ok');
   initApp();
 }
 
-async function doLogin() {
+function toggleChoferFieldsGoogle() {
+  document.getElementById('rg-chofer-fields').style.display =
+    document.getElementById('rg-rol').value === 'chofer' ? 'block' : 'none';
+}
+
+// ── RECUPERAR CONTRASEÑA ──────────────────────────
+async function recuperarPassword() {
   const email = document.getElementById('l-email').value.trim().toLowerCase();
-  const pass  = document.getElementById('l-pass').value;
-  const users = await DB.users();
-  const user  = users.find(u => u.email === email && u.pass === pass);
-  if (!user) { toast('Datos incorrectos', 'err'); return; }
-  if (user.estatus === 'bloqueado') { toast('Cuenta bloqueada', 'err'); return; }
+  if (!email) { toast('Ingresa tu correo primero', 'err'); return; }
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    toast('¡Correo de recuperación enviado! Revisa tu bandeja 📧', 'ok');
+  } catch (e) {
+    toast(firebaseAuthError(e.code), 'err');
+  }
+}
+
+// ── LOGOUT ────────────────────────────────────────
+async function doLogout() {
+  await firebase.auth().signOut();
+  me = null; driverOn = false; map = null;
+  DB.clearSession();
+  go('landing');
+  toast('Sesión cerrada');
+}
+
+// ── HELPERS ───────────────────────────────────────
+async function cargarSesionFirebase(firebaseUser) {
+  let user = await DB.getUser(firebaseUser.uid);
+  if (!user) { toast('Usuario no encontrado', 'err'); return; }
+  if (user.estatus === 'bloqueado') { toast('Cuenta bloqueada', 'err'); await firebase.auth().signOut(); return; }
   DB.saveSession(user);
   me = user;
   toast('¡Bienvenido, ' + user.nom + '! 👋', 'ok');
   initApp();
 }
 
-function doLogout() {
-  me = null; driverOn = false; map = null;
-  DB.clearSession();
-  go('landing');
-  toast('Sesión cerrada');
+function firebaseAuthError(code) {
+  const errors = {
+    'auth/email-already-in-use':    'Este correo ya está registrado',
+    'auth/invalid-email':           'Correo inválido',
+    'auth/weak-password':           'Contraseña muy débil (mínimo 6 caracteres)',
+    'auth/user-not-found':          'Correo no registrado',
+    'auth/wrong-password':          'Contraseña incorrecta',
+    'auth/invalid-credential':      'Datos incorrectos',
+    'auth/too-many-requests':       'Demasiados intentos. Intenta más tarde',
+    'auth/network-request-failed':  'Error de conexión',
+    'auth/popup-blocked':           'El navegador bloqueó la ventana. Permite popups e intenta de nuevo',
+  };
+  return errors[code] || 'Error: ' + code;
 }
 
 function toggleChoferFields() {
