@@ -139,6 +139,22 @@ async function enviarCalificacion(rideId) {
   if (!estrellasSel) { toast('Selecciona una calificación', 'err'); return; }
   const comentario = document.getElementById('comentario-calif').value.trim();
   await DB.updateRide(rideId, { calificacion: estrellasSel, comentario });
+
+  // Calcular promedio y guardarlo en el perfil del conductor
+  const rides    = await DB.rides();
+  const ride     = rides.find(r => r.id === rideId);
+  if (ride && ride.chofId) {
+    const califRides = rides.filter(r => r.chofId === ride.chofId && r.calificacion);
+    // Incluir la calificación actual que acabamos de guardar
+    const todasCalif = califRides.map(r => r.id === rideId ? estrellasSel : r.calificacion);
+    if (!todasCalif.includes(estrellasSel)) todasCalif.push(estrellasSel);
+    const prom = todasCalif.reduce((a, b) => a + b, 0) / todasCalif.length;
+    await DB.updateUser(ride.chofId, {
+      ratingProm:  Math.round(prom * 10) / 10,
+      ratingCount: todasCalif.length,
+    });
+  }
+
   document.getElementById('modal-calif').remove();
   toast('¡Gracias por tu calificación! ' + '⭐'.repeat(estrellasSel), 'ok');
   estrellasSel = 0;
