@@ -66,6 +66,8 @@ async function doLogin() {
 
 // ── LOGIN CON GOOGLE ──────────────────────────────
 async function doLoginGoogle() {
+  if (window._popupEnProgreso) return;
+  window._popupEnProgreso = true;
   const provider = new firebase.auth.GoogleAuthProvider();
   try {
     const cred = await firebase.auth().signInWithPopup(provider);
@@ -104,9 +106,11 @@ async function doLoginGoogle() {
       initApp();
     }
   } catch (e) {
-    if (e.code !== 'auth/popup-closed-by-user') {
+    if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
       toast(firebaseAuthError(e.code), 'err');
     }
+  } finally {
+    window._popupEnProgreso = false;
   }
 }
 
