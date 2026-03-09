@@ -132,20 +132,26 @@ window.addEventListener('load', () => {
 
   // Firebase Auth maneja la sesión automáticamente
   firebase.auth().onAuthStateChanged(async firebaseUser => {
+    // Ignorar si hay un popup de Google en progreso
+    if (window._popupEnProgreso) return;
+
     if (firebaseUser) {
       const u = await DB.getUser(firebaseUser.uid);
       if (u && u.estatus !== 'bloqueado') {
+        // Solo iniciar app si no está ya activa
+        if (document.getElementById('screen-app').classList.contains('active')) return;
         me = u;
         DB.saveSession(u);
-        if (!document.getElementById('screen-app').classList.contains('active')) {
-          initApp();
-        }
+        initApp();
         return;
       }
+      // Usuario en Firebase Auth pero no en DB — puede ser registro Google pendiente
+      if (window._googleUser) return;
     }
-    // Sin sesión válida — mostrar landing
-    const screens = ['screen-app','screen-login','screen-register','screen-register-google'];
-    const anyActive = screens.some(s => document.getElementById(s)?.classList.contains('active'));
-    if (!anyActive) go('landing');
+    // Sin sesión válida — mostrar landing solo si no estamos en otra pantalla de auth
+    const screens = ['screen-login','screen-register','screen-register-google'];
+    const enAuth = screens.some(s => document.getElementById('screen-' + s)?.classList.contains('active') ||
+                                     document.getElementById(s)?.classList.contains('active'));
+    if (!enAuth && !document.getElementById('screen-app').classList.contains('active')) go('landing');
   });
 });
