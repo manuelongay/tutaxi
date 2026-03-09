@@ -67,12 +67,23 @@ async function solicitarViaje() {
 }
 
 // ── RENDER VIAJE ACTIVO (PASAJERO) ────────────────
-function renderViajeActivo(rides) {
+async function renderViajeActivo(rides) {
   const activo = rides.find(r => r.pasId === me.id && ['pendiente', 'aceptado'].includes(r.est));
   const wrap   = document.getElementById('viaje-activo-wrap');
   const card   = document.getElementById('viaje-activo-card');
 
   if (activo) {
+    // Leer rating del chofer directamente de su perfil en tiempo real
+    let ratingProm  = null;
+    let ratingCount = 0;
+    if (activo.chofId) {
+      const chofer = await DB.getUser(activo.chofId);
+      if (chofer) {
+        ratingProm  = chofer.ratingProm  || null;
+        ratingCount = chofer.ratingCount || 0;
+      }
+    }
+
     wrap.style.display = 'block';
     card.innerHTML = `<div class="avail-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
@@ -87,9 +98,9 @@ function renderViajeActivo(rides) {
           <div class="price-lbl">Chofer</div>
           <div style="font-weight:700;">${activo.chofNom}</div>
           <div style="font-size:.75rem;color:var(--gray3);">${activo.veh || ''} ${activo.pla ? '| ' + activo.pla : ''}</div>
-          ${activo.chofRating ? `<div style="margin-top:.3rem;display:flex;align-items:center;gap:.3rem;">
-            ${renderEstrellas(activo.chofRating)}
-            <span style="font-size:.75rem;color:var(--gray3);">${activo.chofRating} (${activo.chofRatingCount || 0})</span>
+          ${ratingProm ? `<div style="margin-top:.35rem;display:flex;align-items:center;gap:.35rem;">
+            <span style="font-size:1rem;">${renderEstrellas(ratingProm)}</span>
+            <span style="font-size:.78rem;color:var(--gray3);">${ratingProm}</span>
           </div>` : ''}
         </div>` : ''}
       </div>
