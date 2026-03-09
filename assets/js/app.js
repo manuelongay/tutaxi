@@ -10,6 +10,14 @@ function go(s) {
   document.querySelectorAll('.screen').forEach(x => x.classList.remove('active'));
   document.getElementById('screen-' + s).classList.add('active');
   if (s === 'app') setTimeout(initMapa, 350);
+  // Rellenar datos de Google si aplica
+  if (s === 'register-google' && window._googleUser) {
+    const u = window._googleUser;
+    const el = id => document.getElementById(id);
+    if (el('rg-nombre'))     el('rg-nombre').textContent    = (u.nom + ' ' + u.ape).trim();
+    if (el('rg-email-show')) el('rg-email-show').textContent = u.email;
+    if (el('rg-foto') && u.foto) { el('rg-foto').src = u.foto; el('rg-foto').style.display = 'block'; }
+  }
 }
 
 function showTab(id, btn) {
@@ -115,17 +123,29 @@ function initApp() {
 }
 
 // ── ARRANQUE ──────────────────────────────────────
-window.addEventListener('load', async () => {
+window.addEventListener('load', () => {
   if (localStorage.getItem('tt_theme') === 'light') {
     document.body.classList.add('light');
     const btn = document.getElementById('theme-btn');
     if (btn) btn.textContent = '☀️';
   }
 
-  const s = DB.session();
-  if (s) {
-    const u = await DB.getUser(s.id);
-    if (u && u.estatus !== 'bloqueado') { me = u; initApp(); return; }
-    DB.clearSession();
-  }
+  // Firebase Auth maneja la sesión automáticamente
+  firebase.auth().onAuthStateChanged(async firebaseUser => {
+    if (firebaseUser) {
+      const u = await DB.getUser(firebaseUser.uid);
+      if (u && u.estatus !== 'bloqueado') {
+        me = u;
+        DB.saveSession(u);
+        if (!document.getElementById('screen-app').classList.contains('active')) {
+          initApp();
+        }
+        return;
+      }
+    }
+    // Sin sesión válida — mostrar landing
+    const screens = ['screen-app','screen-login','screen-register','screen-register-google'];
+    const anyActive = screens.some(s => document.getElementById(s)?.classList.contains('active'));
+    if (!anyActive) go('landing');
+  });
 });
