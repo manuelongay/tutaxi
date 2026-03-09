@@ -3,6 +3,15 @@
    Lógica de solicitud, aceptación y gestión de viajes
    ============================================================ */
 
+// ── HELPER ESTRELLAS ─────────────────────────────
+function renderEstrellas(prom) {
+  if (!prom) return '';
+  const full  = Math.floor(prom);
+  const half  = prom - full >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  return '⭐'.repeat(full) + (half ? '✨' : '') + '☆'.repeat(empty);
+}
+
 // ── MOTIVOS DE CANCELACIÓN ────────────────────────
 const MOTIVOS_PASAJERO = [
   'El chofer tardó demasiado',
@@ -74,7 +83,15 @@ function renderViajeActivo(rides) {
       <div class="to-lbl" style="margin:.25rem 0 .9rem;">🎯 ${activo.destino}</div>
       <div class="price-box" style="margin-bottom:.8rem;">
         <div><div class="price-lbl">Tu oferta</div><div class="price-val">$${activo.precio}</div></div>
-        ${activo.chofNom ? `<div><div class="price-lbl">Chofer</div><div style="font-weight:700;">${activo.chofNom}</div><div style="font-size:.75rem;color:var(--gray3);">${activo.veh || ''} ${activo.pla ? '| ' + activo.pla : ''}</div></div>` : ''}
+        ${activo.chofNom ? `<div>
+          <div class="price-lbl">Chofer</div>
+          <div style="font-weight:700;">${activo.chofNom}</div>
+          <div style="font-size:.75rem;color:var(--gray3);">${activo.veh || ''} ${activo.pla ? '| ' + activo.pla : ''}</div>
+          ${activo.chofRating ? `<div style="margin-top:.3rem;display:flex;align-items:center;gap:.3rem;">
+            ${renderEstrellas(activo.chofRating)}
+            <span style="font-size:.75rem;color:var(--gray3);">${activo.chofRating} (${activo.chofRatingCount || 0})</span>
+          </div>` : ''}
+        </div>` : ''}
       </div>
       <div style="display:flex;gap:.6rem;margin-top:.5rem;">
         ${activo.est === 'pendiente' ? `
@@ -249,6 +266,7 @@ async function aceptarViaje(id) {
   await DB.updateRide(id, {
     est: 'aceptado', chofId: me.id, chofNom: me.nom + ' ' + (me.ape || ''),
     chofTel: me.tel, veh: me.veh, pla: me.pla,
+    chofRating: me.ratingProm || null, chofRatingCount: me.ratingCount || 0,
   });
   const rides = await DB.rides();
   const ride  = rides.find(r => r.id === id);
