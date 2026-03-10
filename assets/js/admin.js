@@ -66,12 +66,17 @@ function renderAll(users, rides){
 }
 
 function renderRidesLive(rides){
+  allRidesCache = rides;
   const pendientes = rides.filter(r=>r.est==='pendiente').length;
   const badgeRides = document.getElementById('badge-rides');
   if(badgeRides) badgeRides.textContent = pendientes;
   const statRides = document.getElementById('stat-rides');
   if(statRides) statRides.textContent = rides.length;
-  renderRides(rides);
+  // Respetar filtro activo al actualizar
+  const activeTab = document.querySelector('#view-rides .filter-tab.active');
+  const estado = activeTab?.getAttribute('onclick')?.match(/'(\w+)'/)?.[1] || 'all';
+  const filtrados = estado === 'all' ? rides : rides.filter(r => r.est === estado);
+  renderRides(filtrados);
 }
 
 // ── VISTAS ─────────────────────────────────────────
@@ -217,6 +222,16 @@ function filterDrivers(val){
 }
 
 // ── VIAJES ─────────────────────────────────────────
+// ── FILTRO DE VIAJES ──────────────────────────────
+let allRidesCache = [];
+
+function filterRides(estado, btn) {
+  document.querySelectorAll('#view-rides .filter-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const filtrados = estado === 'all' ? allRidesCache : allRidesCache.filter(r => r.est === estado);
+  renderRides(filtrados);
+}
+
 function renderRides(rides){
   const el=document.getElementById('rides-table');
   if(!el) return;
