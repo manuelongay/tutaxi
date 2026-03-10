@@ -19,7 +19,7 @@ function calcularPrecio(km, minutos) {
   const noche   = hora >= tarifasCache.horaInicio || hora < tarifasCache.horaFin;
   const mult    = noche ? tarifasCache.nocturna : 1;
   const kmExtra = Math.max(0, parseFloat(km) - (tarifasCache.kmIncluidos || 0));
-  const espera  = (minutos || 0) * tarifasCache.espera;
+  const espera  = tarifasCache.esperaActiva ? (minutos || 0) * tarifasCache.espera : 0;
   const diurno  = Math.max(tarifasCache.minima, tarifasCache.minima + kmExtra * tarifasCache.porKm + espera);
   const precio  = diurno * mult;
   return Math.round(precio / 5) * 5;
