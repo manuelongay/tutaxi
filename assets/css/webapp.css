@@ -166,3 +166,5 @@ body.light #map         { border-color: #ccc; }
 }
 
 .s-en_camino { background: rgba(99,179,237,.15); color: #63b3ed; }
+
+.s-en_curso  { background: rgba(0,200,100,.15); color: #00c864; }
