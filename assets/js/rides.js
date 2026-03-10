@@ -68,56 +68,79 @@ async function solicitarViaje() {
 
 // ── RENDER VIAJE ACTIVO (PASAJERO) ────────────────
 async function renderViajeActivo(rides) {
-  const activo = rides.find(r => r.pasId === me.id && ['pendiente', 'aceptado'].includes(r.est));
+  const activo = rides.find(r => r.pasId === me.id && ['pendiente','aceptado','en_camino'].includes(r.est));
   const wrap   = document.getElementById('viaje-activo-wrap');
   const card   = document.getElementById('viaje-activo-card');
 
   if (activo) {
-    // Leer rating del chofer directamente de su perfil en tiempo real
-    let ratingProm  = null;
-    let ratingCount = 0;
+    // Datos del chofer en tiempo real
+    let ratingProm = null, choferUser = null;
     if (activo.chofId) {
-      const chofer = await DB.getUser(activo.chofId);
-      if (chofer) {
-        ratingProm  = chofer.ratingProm  || null;
-        ratingCount = chofer.ratingCount || 0;
-      }
+      choferUser = await DB.getUser(activo.chofId);
+      if (choferUser) ratingProm = choferUser.ratingProm || null;
     }
 
+    // ETA del chofer hacia el punto de recogida
+    let etaHtml = '';
+    if ((activo.est === 'aceptado' || activo.est === 'en_camino') && activo.coordO && choferUser && choferUser.lastLat) {
+      const distKm = distanciaKm(choferUser.lastLat, choferUser.lastLng, activo.coordO.lat, activo.coordO.lng);
+      const etaMin = Math.max(1, Math.round((distKm * 1000) / 300));
+      const color  = activo.est === 'en_camino' ? 'var(--green)' : 'var(--accent)';
+      etaHtml = `
+        <div style="display:flex;align-items:center;gap:.6rem;background:rgba(245,197,24,.08);border:1px solid rgba(245,197,24,.2);border-radius:10px;padding:.6rem .9rem;margin-bottom:.8rem;">
+          <span style="font-size:1.3rem;">🕐</span>
+          <div>
+            <div style="font-size:.72rem;color:var(--gray3);">Tiempo estimado de llegada</div>
+            <div style="font-weight:700;color:${color};font-size:1rem;">~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}</div>
+          </div>
+        </div>`;
+    }
+
+    // Foto del chofer
+    const fotoChofer = activo.chofFoto
+      ? `<img src="${activo.chofFoto}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);flex-shrink:0;">`
+      : `<div class="avatar" style="width:48px;height:48px;font-size:1.3rem;flex-shrink:0;">${activo.chofNom ? activo.chofNom[0] : '?'}</div>`;
+
     wrap.style.display = 'block';
-    card.innerHTML = `<div class="avail-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
-        <span class="sec-label" style="margin:0;">Estado</span>
-        <span class="status-pill s-${activo.est}">${sLabel(activo.est)}</span>
-      </div>
-      <div class="from-lbl">📍 ${activo.origen}</div>
-      <div class="to-lbl" style="margin:.25rem 0 .9rem;">🎯 ${activo.destino}</div>
-      <div class="price-box" style="margin-bottom:.8rem;">
-        <div><div class="price-lbl">Tu oferta</div><div class="price-val">$${activo.precio}</div></div>
-        ${activo.chofNom ? `<div>
-          <div class="price-lbl">Chofer</div>
-          <div style="font-weight:700;">${activo.chofNom}</div>
-          <div style="font-size:.75rem;color:var(--gray3);">${activo.veh || ''} ${activo.pla ? '| ' + activo.pla : ''}</div>
-          ${ratingProm ? `<div style="margin-top:.35rem;display:flex;align-items:center;gap:.35rem;">
-            <span style="font-size:1rem;">${renderEstrellas(ratingProm)}</span>
-            <span style="font-size:.78rem;color:var(--gray3);">${ratingProm}</span>
-          </div>` : ''}
-        </div>` : ''}
-      </div>
-      <div style="display:flex;gap:.6rem;margin-top:.5rem;">
-        ${activo.est === 'pendiente' ? `
-          <button class="btn btn-danger btn-full" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
-            Cancelar solicitud
-          </button>` : ''}
-        ${activo.est === 'aceptado' ? `
-          <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
-            Cancelar
-          </button>
-          <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${activo.id}')">
-            Marcar completado ✓
-          </button>` : ''}
-      </div>
-    </div>`;
+    card.innerHTML = `
+      <div class="avail-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
+          <span class="sec-label" style="margin:0;">Estado del viaje</span>
+          <span class="status-pill s-${activo.est}">${sLabel(activo.est)}</span>
+        </div>
+        <div class="from-lbl">📍 ${activo.origen}</div>
+        <div class="to-lbl" style="margin:.25rem 0 .9rem;">🎯 ${activo.destino}</div>
+        ${etaHtml}
+        <div class="price-box" style="margin-bottom:.8rem;">
+          <div><div class="price-lbl">Tu oferta</div><div class="price-val">$${activo.precio}</div></div>
+          ${activo.chofNom ? `
+            <div style="display:flex;align-items:center;gap:.7rem;">
+              ${fotoChofer}
+              <div>
+                <div style="font-weight:700;">${activo.chofNom}</div>
+                <div style="font-size:.75rem;color:var(--gray3);">${activo.veh || ''} ${activo.pla ? '| '+activo.pla : ''}</div>
+                ${ratingProm ? `
+                  <div style="display:flex;align-items:center;gap:.3rem;margin-top:.2rem;">
+                    <span style="font-size:.9rem;">${renderEstrellas(ratingProm)}</span>
+                    <span style="font-size:.75rem;color:var(--gray3);">${ratingProm}</span>
+                  </div>` : ''}
+              </div>
+            </div>` : ''}
+        </div>
+        <div style="display:flex;gap:.6rem;margin-top:.5rem;">
+          ${activo.est === 'pendiente' ? `
+            <button class="btn btn-danger btn-full" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
+              Cancelar solicitud
+            </button>` : ''}
+          ${(activo.est === 'aceptado' || activo.est === 'en_camino') ? `
+            <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
+              Cancelar
+            </button>
+            <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${activo.id}')">
+              Marcar completado ✓
+            </button>` : ''}
+        </div>
+      </div>`;
   } else {
     const completado = rides.find(r => r.pasId === me.id && r.est === 'completado' && !r.calificacion);
     if (completado) mostrarModalCalificacion(completado);
@@ -277,7 +300,9 @@ async function aceptarViaje(id) {
   await DB.updateRide(id, {
     est: 'aceptado', chofId: me.id, chofNom: me.nom + ' ' + (me.ape || ''),
     chofTel: me.tel, veh: me.veh, pla: me.pla,
+    chofFoto: me.foto || null,
     chofRating: me.ratingProm || null, chofRatingCount: me.ratingCount || 0,
+    tsAceptado: Date.now(),
   });
   const rides = await DB.rides();
   const ride  = rides.find(r => r.id === id);
@@ -293,5 +318,5 @@ async function aceptarViaje(id) {
 
 // ── HELPER ────────────────────────────────────────
 function sLabel(s) {
-  return { pendiente: 'Pendiente', aceptado: 'Aceptado', completado: 'Completado', cancelado: 'Cancelado' }[s] || s;
+  return { pendiente: 'Pendiente', aceptado: 'Aceptado', en_camino: 'En camino 🚗', completado: 'Completado', cancelado: 'Cancelado' }[s] || s;
 }
