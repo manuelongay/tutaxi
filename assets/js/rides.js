@@ -132,12 +132,16 @@ async function renderViajeActivo(rides) {
             <button class="btn btn-danger btn-full" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
               Cancelar solicitud
             </button>` : ''}
-          ${(activo.est === 'en_camino') ? `
-            <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">Cancelar</button>
-            <button class="btn btn-success" style="flex:2;" onclick="iniciarViaje('${activo.id}')">🚦 Iniciar viaje</button>` : ''}
-          ${(activo.est === 'en_curso') ? `
-            <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">Cancelar</button>
-            <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${activo.id}')">Marcar completado ✓</button>` : ''}
+          ${activo.est === 'en_camino' ? `
+            <div style="display:flex;gap:.6rem;">
+              <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">Cancelar</button>
+              <button class="btn btn-success" style="flex:2;" onclick="iniciarViaje('${activo.id}')">🚦 Iniciar viaje</button>
+            </div>` : ''}
+          ${activo.est === 'en_curso' ? `
+            <div style="display:flex;gap:.6rem;">
+              <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">Cancelar</button>
+              <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${activo.id}')">✓ Completado</button>
+            </div>` : ''}
         </div>
       </div>`;
   } else {
@@ -322,7 +326,7 @@ async function aceptarViaje(id) {
   if (ride) {
     await DB.saveNotif({
       id: 'n_' + Date.now(), pasId: ride.pasId,
-      msg: `🚗 ${me.nom} aceptó tu viaje y está en camino. Vehículo: ${me.veh || '—'} | Placas: ${me.pla || '—'}`,
+      msg: `🚗 ¡${me.nom} aceptó tu viaje y está en camino! Vehículo: ${me.veh || '—'} | Placas: ${me.pla || '—'}`,
       leida: false, fecha: new Date().toISOString()
     });
   }
