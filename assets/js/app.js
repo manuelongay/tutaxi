@@ -32,7 +32,7 @@ function showTab(id, btn) {
   // Al activar la pestaña En curso iniciar el mapa
   if (id === 't-encurso') {
     DB.rides().then(rides => {
-      const activo = rides.find(r => r.chofId === me.id && r.est === 'aceptado');
+      const activo = rides.find(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
       if (activo) setTimeout(() => initMapaEncurso(activo), 200);
     });
   }
@@ -82,7 +82,7 @@ function initApp() {
         renderSolicitudes(rides);
         actualizarIconosChoferes(rides);
         // Verificar si hay viaje aceptado para mostrar/ocultar pestaña En curso
-        const activo = rides.find(r => r.chofId === me.id && r.est === 'aceptado');
+        const activo = rides.find(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
         mostrarPestanaEncurso(activo || null);
       });
     }, 400);
