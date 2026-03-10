@@ -385,7 +385,8 @@ async function cargarTarifas() {
   document.getElementById('tar-nocturna').value   = t.nocturna   ?? 1.3;
   document.getElementById('tar-horaInicio').value = t.horaInicio ?? 22;
   document.getElementById('tar-horaFin').value    = t.horaFin    ?? 6;
-  document.getElementById('tar-espera').value     = t.espera     ?? 1;
+  document.getElementById('tar-espera').value      = t.espera      ?? 1;
+  document.getElementById('tar-esperaActiva').checked = t.esperaActiva ?? false;
   document.getElementById('tar-radioKm').value    = t.radioKm    ?? 3;
   actualizarEjemplos(t);
 }
@@ -398,7 +399,8 @@ async function guardarTarifas() {
     nocturna:   parseFloat(document.getElementById('tar-nocturna').value)   || 1.3,
     horaInicio: parseInt(document.getElementById('tar-horaInicio').value)   || 22,
     horaFin:    parseInt(document.getElementById('tar-horaFin').value)      || 6,
-    espera:     parseFloat(document.getElementById('tar-espera').value)     || 1,
+    espera:        parseFloat(document.getElementById('tar-espera').value) || 1,
+    esperaActiva:  document.getElementById('tar-esperaActiva').checked,
     radioKm:    parseFloat(document.getElementById('tar-radioKm').value)    || 3,
   };
   await DB.saveTarifas(t);
@@ -410,7 +412,7 @@ function actualizarEjemplos(t) {
   const calc = (km, min, noche) => {
     const mult    = noche ? t.nocturna : 1;
     const kmExtra = Math.max(0, km - (t.kmIncluidos || 0));
-    const espera  = min * (t.espera || 0);
+    const espera  = t.esperaActiva ? min * (t.espera || 0) : 0;
     const diurno  = Math.max(t.minima, t.minima + kmExtra * t.porKm + espera);
     const precio  = diurno * mult;
     return Math.round(precio / 5) * 5;
