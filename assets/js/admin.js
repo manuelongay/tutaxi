@@ -364,8 +364,9 @@ window.onload=()=>{
 
 async function cargarTarifas() {
   const t = await DB.getTarifas();
-  document.getElementById('tar-porKm').value      = t.porKm      ?? 9;
-  document.getElementById('tar-minima').value     = t.minima     ?? 30;
+  document.getElementById('tar-porKm').value       = t.porKm       ?? 9;
+  document.getElementById('tar-minima').value      = t.minima      ?? 30;
+  document.getElementById('tar-kmIncluidos').value = t.kmIncluidos ?? 3;
   document.getElementById('tar-nocturna').value   = t.nocturna   ?? 1.3;
   document.getElementById('tar-horaInicio').value = t.horaInicio ?? 22;
   document.getElementById('tar-horaFin').value    = t.horaFin    ?? 6;
@@ -376,8 +377,9 @@ async function cargarTarifas() {
 
 async function guardarTarifas() {
   const t = {
-    porKm:      parseFloat(document.getElementById('tar-porKm').value)      || 9,
-    minima:     parseFloat(document.getElementById('tar-minima').value)     || 30,
+    porKm:       parseFloat(document.getElementById('tar-porKm').value)       || 9,
+    minima:      parseFloat(document.getElementById('tar-minima').value)      || 30,
+    kmIncluidos: parseFloat(document.getElementById('tar-kmIncluidos').value) || 3,
     nocturna:   parseFloat(document.getElementById('tar-nocturna').value)   || 1.3,
     horaInicio: parseInt(document.getElementById('tar-horaInicio').value)   || 22,
     horaFin:    parseInt(document.getElementById('tar-horaFin').value)      || 6,
@@ -391,8 +393,11 @@ async function guardarTarifas() {
 
 function actualizarEjemplos(t) {
   const calc = (km, min, noche) => {
-    const mult = noche ? t.nocturna : 1;
-    return Math.max(t.minima, Math.round(km * t.porKm * mult + min * t.espera));
+    const mult    = noche ? t.nocturna : 1;
+    const kmExtra = Math.max(0, km - (t.kmIncluidos || 0));
+    const base    = kmExtra * t.porKm * mult;
+    const precio = Math.max(t.minima, t.minima + base + min * t.espera);
+    return Math.round(precio / 5) * 5;
   };
   const ej = document.getElementById('tar-ejemplos');
   if (!ej) return;
