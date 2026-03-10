@@ -15,13 +15,13 @@ function cargarTarifas() {
 }
 
 function calcularPrecio(km, minutos) {
-  const hora        = new Date().getHours();
-  const noche       = hora >= tarifasCache.horaInicio || hora < tarifasCache.horaFin;
-  const mult        = noche ? tarifasCache.nocturna : 1;
-  const kmExtra     = Math.max(0, parseFloat(km) - (tarifasCache.kmIncluidos || 0));
-  const base        = kmExtra * tarifasCache.porKm * mult;
-  const espera      = (minutos || 0) * tarifasCache.espera;
-  const precio = Math.max(tarifasCache.minima, tarifasCache.minima + base + espera);
+  const hora    = new Date().getHours();
+  const noche   = hora >= tarifasCache.horaInicio || hora < tarifasCache.horaFin;
+  const mult    = noche ? tarifasCache.nocturna : 1;
+  const kmExtra = Math.max(0, parseFloat(km) - (tarifasCache.kmIncluidos || 0));
+  const espera  = (minutos || 0) * tarifasCache.espera;
+  const diurno  = Math.max(tarifasCache.minima, tarifasCache.minima + kmExtra * tarifasCache.porKm + espera);
+  const precio  = diurno * mult;
   return Math.round(precio / 5) * 5;
 }
 
