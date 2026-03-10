@@ -263,7 +263,7 @@ async function actualizarIconosChoferes(rides) {
   const users    = await DB.users();
   const choferes = users.filter(u => u.rol === 'chofer' && u.estatus === 'activo' && u.lastLat);
   choferes.forEach(chofer => {
-    const tieneViaje = rides.some(r => r.chofId === chofer.id && r.est === 'aceptado');
+    const tieneViaje = rides.some(r => r.chofId === chofer.id && ['en_camino','en_curso'].includes(r.est));
     const lat = chofer.lastLat, lng = chofer.lastLng;
     if (marcadoresChoferes[chofer.id]) {
       marcadoresChoferes[chofer.id].setLatLng([lat, lng]);
@@ -315,7 +315,7 @@ function iniciarTrackingMapa() {
     });
 
     choferes.forEach(chofer => {
-      const tieneViaje = rides.some(r => r.chofId === chofer.id && r.est === 'aceptado');
+      const tieneViaje = rides.some(r => r.chofId === chofer.id && ['en_camino','en_curso'].includes(r.est));
       const lat = chofer.lastLat, lng = chofer.lastLng;
       const dist = distanciaKm(centro.lat, centro.lng, lat, lng).toFixed(1);
 
