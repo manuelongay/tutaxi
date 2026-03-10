@@ -395,8 +395,9 @@ function actualizarEjemplos(t) {
   const calc = (km, min, noche) => {
     const mult    = noche ? t.nocturna : 1;
     const kmExtra = Math.max(0, km - (t.kmIncluidos || 0));
-    const base    = kmExtra * t.porKm * mult;
-    const precio = Math.max(t.minima, t.minima + base + min * t.espera);
+    const espera  = min * (t.espera || 0);
+    const diurno  = Math.max(t.minima, t.minima + kmExtra * t.porKm + espera);
+    const precio  = diurno * mult;
     return Math.round(precio / 5) * 5;
   };
   const ej = document.getElementById('tar-ejemplos');
