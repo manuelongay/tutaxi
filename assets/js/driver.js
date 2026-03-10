@@ -117,16 +117,14 @@ function mostrarPestanaEncurso(ride) {
   const empty = document.getElementById('encurso-empty');
   const info  = document.getElementById('encurso-info');
 
+  // Pestaña siempre visible para el chofer
+  if (btn) btn.style.display = 'block';
+
   if (!ride) {
-    // Sin viaje activo — ocultar pestaña
-    if (btn) btn.style.display = 'none';
     if (wrap)  wrap.style.display  = 'none';
     if (empty) empty.style.display = 'block';
     return;
   }
-
-  // Mostrar pestaña
-  if (btn) btn.style.display = 'block';
 
   // Info del viaje
   if (info) {
@@ -153,21 +151,18 @@ function mostrarPestanaEncurso(ride) {
       <div class="to-lbl" style="margin-top:.25rem;">🎯 ${ride.destino}</div>`;
   }
 
-  // Botón principal según estado
-  const btnEncamino = document.getElementById('btn-encamino-encurso');
+  // Botones según estado
+  const btnIniciar   = document.getElementById('btn-iniciar-encurso');
   const btnCancelar  = document.getElementById('btn-cancelar-encurso');
   const btnCompletar = document.getElementById('btn-completar-encurso');
 
   if (btnCancelar)  btnCancelar.onclick = () => mostrarModalCancelacion(ride.id, 'chofer');
 
   if (ride.est === 'en_camino') {
-    // Mostrar "Iniciar viaje"
-    if (btnEncamino) {
-      btnEncamino.style.display = 'block';
-      btnEncamino.textContent   = '🚦 Iniciar viaje';
-      btnEncamino.style.background = 'linear-gradient(135deg,#00c864,#00a050)';
-      btnEncamino.style.color   = '#fff';
-      btnEncamino.onclick = async () => {
+    // Mostrar "Iniciar viaje", ocultar "Completar"
+    if (btnIniciar) {
+      btnIniciar.style.display = 'block';
+      btnIniciar.onclick = async () => {
         await DB.updateRide(ride.id, { est: 'en_curso', tsInicio: Date.now() });
         const rides = await DB.rides();
         const r = rides.find(x => x.id === ride.id);
@@ -180,7 +175,7 @@ function mostrarPestanaEncurso(ride) {
     if (btnCompletar) btnCompletar.style.display = 'none';
   } else if (ride.est === 'en_curso') {
     // Ocultar "Iniciar viaje", mostrar "Completar"
-    if (btnEncamino)  btnEncamino.style.display  = 'none';
+    if (btnIniciar)   btnIniciar.style.display   = 'none';
     if (btnCompletar) {
       btnCompletar.style.display = 'block';
       btnCompletar.onclick = () => completarViaje(ride.id);
