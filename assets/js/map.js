@@ -103,28 +103,43 @@ function ponerPin(tipo, lat, lng) {
 
 // ── RUTA ──────────────────────────────────────────
 function trazarRuta() {
-  if (!coordO || !coordD) return;
+  if (!coordO || !coordD || !map) return;
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-  const url = `https://router.project-osrm.org/route/v1/driving/${coordO.lng},${coordO.lat};${coordD.lng},${coordD.lat}?overview=full&geometries=geojson`;
-  fetch(url).then(r => r.json()).then(data => {
-    if (!data.routes?.length) { rutaLinea(); return; }
-    const r = data.routes[0];
-    const pts = r.geometry.coordinates.map(c => [c[1], c[0]]);
-    routeLine = L.polyline(pts, { color: '#f5c518', weight: 5, opacity: .9 }).addTo(map);
-    map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
-    const km  = (r.distance / 1000).toFixed(1);
-    const min = Math.round(r.duration / 60);
-    const sug = calcularPrecio(km, min);
-    document.getElementById('ri-dist').textContent = km + ' km';
-    document.getElementById('ri-time').textContent = min + ' min';
-    document.getElementById('ri-sug').textContent  = '$' + sug;
-    document.getElementById('route-info').classList.add('on');
-    pickPrice(sug);
-  }).catch(() => rutaLinea());
+
+  // Intentar OSRM primero, luego OSRM demo, finalmente línea recta
+  const osrm1 = `https://router.project-osrm.org/route/v1/driving/${coordO.lng},${coordO.lat};${coordD.lng},${coordD.lat}?overview=full&geometries=geojson`;
+  const osrm2 = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordO.lng},${coordO.lat};${coordD.lng},${coordD.lat}?overview=full&geometries=geojson`;
+
+  const intentarRuta = (url) => fetch(url, { signal: AbortSignal.timeout(6000) })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.routes?.length) throw new Error('sin ruta');
+      return data;
+    });
+
+  intentarRuta(osrm1)
+    .catch(() => intentarRuta(osrm2))
+    .then(data => {
+      if (!map) return;
+      const r   = data.routes[0];
+      const pts = r.geometry.coordinates.map(c => [c[1], c[0]]);
+      routeLine = L.polyline(pts, { color: '#f5c518', weight: 5, opacity: .9 }).addTo(map);
+      map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+      const km  = (r.distance / 1000).toFixed(1);
+      const min = Math.round(r.duration / 60);
+      const sug = calcularPrecio(km, min);
+      document.getElementById('ri-dist').textContent = km + ' km';
+      document.getElementById('ri-time').textContent = min + ' min';
+      document.getElementById('ri-sug').textContent  = '$' + sug;
+      document.getElementById('route-info').classList.add('on');
+      pickPrice(sug);
+    })
+    .catch(() => rutaLinea());
 }
 
 function rutaLinea() {
-  if (routeLine) map.removeLayer(routeLine);
+  if (!map || !coordO || !coordD) return;
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
   routeLine = L.polyline([[coordO.lat, coordO.lng], [coordD.lat, coordD.lng]], { color: '#f5c518', weight: 4, dashArray: '8 6' }).addTo(map);
   map.fitBounds([[coordO.lat, coordO.lng], [coordD.lat, coordD.lng]], { padding: [50, 50] });
   const d   = map.distance([coordO.lat, coordO.lng], [coordD.lat, coordD.lng]);
