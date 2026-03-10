@@ -48,7 +48,7 @@ async function solicitarViaje() {
   if (!origen || !destino) { toast('Ingresa origen y destino', 'err'); return; }
 
   const rides = await DB.rides();
-  if (rides.find(r => r.pasId === me.id && ['pendiente', 'aceptado'].includes(r.est))) {
+  if (rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est))) {
     toast('Ya tienes un viaje activo', 'err'); return;
   }
 
@@ -68,7 +68,7 @@ async function solicitarViaje() {
 
 // ── RENDER VIAJE ACTIVO (PASAJERO) ────────────────
 async function renderViajeActivo(rides) {
-  const activo = rides.find(r => r.pasId === me.id && ['pendiente','aceptado','en_camino'].includes(r.est));
+  const activo = rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est));
   const wrap   = document.getElementById('viaje-activo-wrap');
   const card   = document.getElementById('viaje-activo-card');
 
@@ -82,7 +82,7 @@ async function renderViajeActivo(rides) {
 
     // ETA del chofer hacia el punto de recogida
     let etaHtml = '';
-    if ((activo.est === 'aceptado' || activo.est === 'en_camino') && activo.coordO && choferUser && choferUser.lastLat) {
+    if ((activo.est === 'en_camino') && activo.coordO && choferUser && choferUser.lastLat) {
       const distKm = distanciaKm(choferUser.lastLat, choferUser.lastLng, activo.coordO.lat, activo.coordO.lng);
       const etaMin = Math.max(1, Math.round((distKm * 1000) / 300));
       const color  = activo.est === 'en_camino' ? 'var(--green)' : 'var(--accent)';
@@ -132,13 +132,12 @@ async function renderViajeActivo(rides) {
             <button class="btn btn-danger btn-full" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
               Cancelar solicitud
             </button>` : ''}
-          ${(activo.est === 'aceptado' || activo.est === 'en_camino') ? `
-            <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
-              Cancelar
-            </button>
-            <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${activo.id}')">
-              Marcar completado ✓
-            </button>` : ''}
+          ${(activo.est === 'en_camino') ? `
+            <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">Cancelar</button>
+            <button class="btn btn-success" style="flex:2;" onclick="iniciarViaje('${activo.id}')">🚦 Iniciar viaje</button>` : ''}
+          ${(activo.est === 'en_curso') ? `
+            <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">Cancelar</button>
+            <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${activo.id}')">Marcar completado ✓</button>` : ''}
         </div>
       </div>`;
   } else {
@@ -149,7 +148,18 @@ async function renderViajeActivo(rides) {
 }
 
 async function completarViaje(id) {
-  await DB.updateRide(id, { est: 'completado' });
+  await DB.updateRide(id, { est: 'completado', tsCompletado: Date.now() });
+  const rides = await DB.rides();
+  const ride  = rides.find(r => r.id === id);
+  if (ride) {
+    // Notificar a la otra parte
+    const destinatario = me.rol === 'chofer' ? ride.pasId : ride.chofId;
+    if (destinatario) {
+      await DB.saveNotif({ id: 'n_' + Date.now(), pasId: destinatario,
+        msg: '✅ El viaje fue marcado como completado. ¡Gracias!',
+        leida: false, fecha: new Date().toISOString() });
+    }
+  }
   toast('¡Completado! ⭐', 'ok');
 }
 
@@ -251,6 +261,9 @@ async function confirmarCancelacion(rideId, quien) {
 // ── RENDER SOLICITUDES (CHOFER) ───────────────────
 function renderSolicitudes(rides) {
   if (!driverOn) return;
+  // No mostrar solicitudes si el chofer ya tiene un viaje activo
+  const tieneActivo = rides.some(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
+  if (tieneActivo) return; // ya está en un viaje
   const pendientes = rides.filter(r => r.est === 'pendiente');
   const el         = document.getElementById('solicitudes-list');
 
@@ -298,25 +311,39 @@ function rechazarViaje(id, btn) { btn.closest('.avail-card').remove(); toast('Re
 
 async function aceptarViaje(id) {
   await DB.updateRide(id, {
-    est: 'aceptado', chofId: me.id, chofNom: me.nom + ' ' + (me.ape || ''),
+    est: 'en_camino', chofId: me.id, chofNom: me.nom + ' ' + (me.ape || ''),
     chofTel: me.tel, veh: me.veh, pla: me.pla,
     chofFoto: me.foto || null,
     chofRating: me.ratingProm || null, chofRatingCount: me.ratingCount || 0,
-    tsAceptado: Date.now(),
+    tsAceptado: Date.now(), tsEnCamino: Date.now(),
   });
   const rides = await DB.rides();
   const ride  = rides.find(r => r.id === id);
   if (ride) {
     await DB.saveNotif({
       id: 'n_' + Date.now(), pasId: ride.pasId,
-      msg: `🚗 ${me.nom} aceptó tu viaje. Vehículo: ${me.veh || '—'} | Placas: ${me.pla || '—'}`,
+      msg: `🚗 ${me.nom} aceptó tu viaje y está en camino. Vehículo: ${me.veh || '—'} | Placas: ${me.pla || '—'}`,
       leida: false, fecha: new Date().toISOString()
     });
   }
-  toast('¡Viaje aceptado! 🚗', 'ok');
+  toast('¡En camino hacia el pasajero! 🚗', 'ok');
+}
+
+// ── INICIAR VIAJE ─────────────────────────────────
+async function iniciarViaje(id) {
+  await DB.updateRide(id, { est: 'en_curso', tsInicio: Date.now() });
+  // Notificar al conductor si lo inició el pasajero
+  const rides = await DB.rides();
+  const ride  = rides.find(r => r.id === id);
+  if (ride && ride.chofId) {
+    await DB.saveNotif({ id: 'n_' + Date.now(), pasId: ride.chofId,
+      msg: '🚦 El pasajero inició el viaje. ¡Buen viaje!',
+      leida: false, fecha: new Date().toISOString() });
+  }
+  toast('¡Viaje iniciado! 🛣️', 'ok');
 }
 
 // ── HELPER ────────────────────────────────────────
 function sLabel(s) {
-  return { pendiente: 'Pendiente', aceptado: 'Aceptado', en_camino: 'En camino 🚗', completado: 'Completado', cancelado: 'Cancelado' }[s] || s;
+  return { pendiente: 'Pendiente', en_camino: 'En camino 🚗', en_curso: 'En curso 🛣️', completado: 'Completado', cancelado: 'Cancelado' }[s] || s;
 }
