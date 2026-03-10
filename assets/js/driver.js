@@ -130,10 +130,14 @@ function mostrarPestanaEncurso(ride) {
 
   // Info del viaje
   if (info) {
+    const estadoPill = ride.est === 'en_camino'
+      ? '<span class="status-pill" style="background:rgba(0,200,100,.15);color:#00c864;">En camino 🚗</span>'
+      : '<span class="status-pill s-aceptado">Aceptado</span>';
+
     info.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">
         <span class="sec-label" style="margin:0;">Viaje en curso</span>
-        <span class="status-pill s-aceptado">Aceptado</span>
+        ${estadoPill}
       </div>
       <div class="avail-user" style="margin-bottom:.8rem;">
         <div class="avatar">${ride.pasNom[0]}</div>
@@ -147,7 +151,22 @@ function mostrarPestanaEncurso(ride) {
       <div class="to-lbl" style="margin-top:.25rem;">🎯 ${ride.destino}</div>`;
   }
 
-  // Botones
+  // Botón "En camino" — solo si estado es aceptado
+  const btnEncamino = document.getElementById('btn-encamino-encurso');
+  if (btnEncamino) {
+    if (ride.est === 'en_camino') {
+      btnEncamino.style.display = 'none';
+    } else {
+      btnEncamino.style.display = 'block';
+      btnEncamino.onclick = async () => {
+        await DB.updateRide(ride.id, { est: 'en_camino', tsEnCamino: Date.now() });
+        toast('El pasajero fue notificado 🚗', 'ok');
+        btnEncamino.style.display = 'none';
+      };
+    }
+  }
+
+  // Botones cancelar / completar
   const btnCancelar   = document.getElementById('btn-cancelar-encurso');
   const btnCompletar  = document.getElementById('btn-completar-encurso');
   if (btnCancelar)  btnCancelar.onclick  = () => mostrarModalCancelacion(ride.id, 'chofer');
