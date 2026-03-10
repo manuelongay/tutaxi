@@ -267,7 +267,12 @@ function renderSolicitudes(rides) {
   if (!driverOn) return;
   // No mostrar solicitudes si el chofer ya tiene un viaje activo
   const tieneActivo = rides.some(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
-  if (tieneActivo) return; // ya está en un viaje
+  if (tieneActivo) {
+    // Limpiar lista para que no quede el viaje anterior visible
+    const el = document.getElementById('solicitudes-list');
+    if (el) el.innerHTML = '<div class="empty"><div class="empty-icon">🚗</div><div class="empty-title">Tienes un viaje activo</div></div>';
+    return;
+  }
   const pendientes = rides.filter(r => r.est === 'pendiente');
   const el         = document.getElementById('solicitudes-list');
 
