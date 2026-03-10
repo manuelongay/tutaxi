@@ -74,13 +74,14 @@ const DB = {
   getTarifas: async () => {
     const snap = await firebase.database().ref('config/tarifas').get();
     return snap.exists() ? snap.val() : {
-      porKm:      9,
-      minima:     30,
-      nocturna:   1.3,
-      horaInicio: 22,
-      horaFin:    6,
-      espera:     1,
-      radioKm:    3,
+      porKm:       9,
+      minima:      30,
+      kmIncluidos: 3,
+      nocturna:    1.3,
+      horaInicio:  22,
+      horaFin:     6,
+      espera:      1,
+      radioKm:     3,
     };
   },
 
@@ -90,7 +91,7 @@ const DB = {
   onTarifas: (cb) =>
     firebase.database().ref('config/tarifas').on('value', snap =>
       cb(snap.exists() ? snap.val() : {
-        porKm: 9, minima: 30, nocturna: 1.3,
+        porKm: 9, minima: 30, kmIncluidos: 3, nocturna: 1.3,
         horaInicio: 22, horaFin: 6, espera: 1, radioKm: 3,
       })
     ),
