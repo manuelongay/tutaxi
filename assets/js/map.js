@@ -7,7 +7,7 @@ let map = null, markerO = null, markerD = null, routeLine = null;
 let coordO = null, coordD = null, pinMode = null;
 let ddTimers = {}, ddRes = { origen: [], destino: [] };
 let marcadoresChoferes = {};
-let tarifasCache = { porKm: 9, minima: 30, nocturna: 1.3, horaInicio: 22, horaFin: 6, espera: 1, radioKm: 3 };
+let tarifasCache = { porKm: 9, minima: 30, kmIncluidos: 3, nocturna: 1.3, horaInicio: 22, horaFin: 6, espera: 1, radioKm: 3 };
 
 // Cargar tarifas desde Firebase al iniciar
 function cargarTarifas() {
@@ -15,12 +15,14 @@ function cargarTarifas() {
 }
 
 function calcularPrecio(km, minutos) {
-  const hora   = new Date().getHours();
-  const noche  = hora >= tarifasCache.horaInicio || hora < tarifasCache.horaFin;
-  const mult   = noche ? tarifasCache.nocturna : 1;
-  const base   = parseFloat(km) * tarifasCache.porKm * mult;
-  const espera = (minutos || 0) * tarifasCache.espera;
-  return Math.max(tarifasCache.minima, Math.round(base + espera));
+  const hora        = new Date().getHours();
+  const noche       = hora >= tarifasCache.horaInicio || hora < tarifasCache.horaFin;
+  const mult        = noche ? tarifasCache.nocturna : 1;
+  const kmExtra     = Math.max(0, parseFloat(km) - (tarifasCache.kmIncluidos || 0));
+  const base        = kmExtra * tarifasCache.porKm * mult;
+  const espera      = (minutos || 0) * tarifasCache.espera;
+  const precio = Math.max(tarifasCache.minima, tarifasCache.minima + base + espera);
+  return Math.round(precio / 5) * 5;
 }
 
 // ── INICIALIZACIÓN ────────────────────────────────
