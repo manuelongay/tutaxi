@@ -130,9 +130,11 @@ function mostrarPestanaEncurso(ride) {
 
   // Info del viaje
   if (info) {
-    const estadoPill = ride.est === 'en_camino'
-      ? '<span class="status-pill" style="background:rgba(0,200,100,.15);color:#00c864;">En camino 🚗</span>'
-      : '<span class="status-pill s-aceptado">Aceptado</span>';
+    const estadoLabels = {
+      en_camino: '<span class="status-pill" style="background:rgba(99,179,237,.15);color:#63b3ed;">En camino 🚗</span>',
+      en_curso:  '<span class="status-pill" style="background:rgba(0,200,100,.15);color:#00c864;">En curso 🛣️</span>',
+    };
+    const estadoPill = estadoLabels[ride.est] || '<span class="status-pill s-aceptado">Aceptado</span>';
 
     info.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">
@@ -151,26 +153,39 @@ function mostrarPestanaEncurso(ride) {
       <div class="to-lbl" style="margin-top:.25rem;">🎯 ${ride.destino}</div>`;
   }
 
-  // Botón "En camino" — solo si estado es aceptado
+  // Botón principal según estado
   const btnEncamino = document.getElementById('btn-encamino-encurso');
-  if (btnEncamino) {
-    if (ride.est === 'en_camino') {
-      btnEncamino.style.display = 'none';
-    } else {
+  const btnCancelar  = document.getElementById('btn-cancelar-encurso');
+  const btnCompletar = document.getElementById('btn-completar-encurso');
+
+  if (btnCancelar)  btnCancelar.onclick = () => mostrarModalCancelacion(ride.id, 'chofer');
+
+  if (ride.est === 'en_camino') {
+    // Mostrar "Iniciar viaje"
+    if (btnEncamino) {
       btnEncamino.style.display = 'block';
+      btnEncamino.textContent   = '🚦 Iniciar viaje';
+      btnEncamino.style.background = 'linear-gradient(135deg,#00c864,#00a050)';
+      btnEncamino.style.color   = '#fff';
       btnEncamino.onclick = async () => {
-        await DB.updateRide(ride.id, { est: 'en_camino', tsEnCamino: Date.now() });
-        toast('El pasajero fue notificado 🚗', 'ok');
-        btnEncamino.style.display = 'none';
+        await DB.updateRide(ride.id, { est: 'en_curso', tsInicio: Date.now() });
+        const rides = await DB.rides();
+        const r = rides.find(x => x.id === ride.id);
+        if (r) await DB.saveNotif({ id: 'n_' + Date.now(), pasId: r.pasId,
+          msg: '🚦 El conductor inició el viaje. ¡Buen viaje!',
+          leida: false, fecha: new Date().toISOString() });
+        toast('¡Viaje iniciado! 🛣️', 'ok');
       };
     }
+    if (btnCompletar) btnCompletar.style.display = 'none';
+  } else if (ride.est === 'en_curso') {
+    // Ocultar "Iniciar viaje", mostrar "Completar"
+    if (btnEncamino)  btnEncamino.style.display  = 'none';
+    if (btnCompletar) {
+      btnCompletar.style.display = 'block';
+      btnCompletar.onclick = () => completarViaje(ride.id);
+    }
   }
-
-  // Botones cancelar / completar
-  const btnCancelar   = document.getElementById('btn-cancelar-encurso');
-  const btnCompletar  = document.getElementById('btn-completar-encurso');
-  if (btnCancelar)  btnCancelar.onclick  = () => mostrarModalCancelacion(ride.id, 'chofer');
-  if (btnCompletar) btnCompletar.onclick = () => completarViaje(ride.id);
 
   if (wrap)  wrap.style.display  = 'block';
   if (empty) empty.style.display = 'none';
