@@ -151,8 +151,9 @@ async function renderViajeActivo(rides) {
     if (btnSolicitar) btnSolicitar.style.display = 'none';
 
   } else {
-    // ── Limpiar mapa y estado ──
+    // ── Limpiar mapa, tracking y estado ──
     detenerMapaPasajero();
+    limpiarMapaViaje();
     const completado = rides.find(r => r.pasId === me.id && r.est === 'completado' && !r.calificacion);
     if (completado) mostrarModalCalificacion(completado);
     wrap.style.display = 'none'; card.innerHTML = '';
