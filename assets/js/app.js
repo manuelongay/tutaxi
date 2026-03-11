@@ -98,16 +98,27 @@ function initApp() {
       // Restaurar ruta si hay viaje activo al recargar
       const rides = await DB.rides();
       const activo = rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est));
-      if (activo && activo.coordO && activo.coordD) {
-        coordO = activo.coordO;
-        coordD = activo.coordD;
-        document.getElementById('inp-origen').value  = activo.origen  || '';
-        document.getElementById('inp-destino').value = activo.destino || '';
-        setTimeout(() => {
-          ponerPin('origen',  coordO.lat, coordO.lng);
-          ponerPin('destino', coordD.lat, coordD.lng);
-          trazarRuta();
-        }, 400);
+      if (activo) {
+        // Ocultar botón solicitar si hay viaje activo
+        const btnSolicitar = document.getElementById('btn-solicitar');
+        if (btnSolicitar) btnSolicitar.style.display = 'none';
+
+        if (activo.coordO && activo.coordD) {
+          coordO = activo.coordO;
+          coordD = activo.coordD;
+          document.getElementById('inp-origen').value  = activo.origen  || '';
+          document.getElementById('inp-destino').value = activo.destino || '';
+          setTimeout(() => {
+            ponerPin('origen',  coordO.lat, coordO.lng);
+            ponerPin('destino', coordD.lat, coordD.lng);
+            trazarRuta();
+          }, 400);
+        }
+
+        // Reiniciar tracking del conductor si aplica
+        if ((activo.est === 'en_camino' || activo.est === 'en_curso') && activo.chofId) {
+          setTimeout(() => iniciarMapaPasajero(activo), 500);
+        }
       }
     }, 350);
 
