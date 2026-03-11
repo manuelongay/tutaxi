@@ -93,7 +93,19 @@ function initApp() {
     document.getElementById('tab-chofer-btn').style.display    = 'none';
     document.getElementById('tab-ganancias-btn').style.display = 'none';
     document.getElementById('tab-inicio-btn').style.display    = 'block';
-    setTimeout(initMapa, 350);
+    setTimeout(async () => {
+      initMapa();
+      // Restaurar ruta si hay viaje activo al recargar
+      const rides = await DB.rides();
+      const activo = rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est));
+      if (activo && activo.coordO && activo.coordD) {
+        coordO = activo.coordO;
+        coordD = activo.coordD;
+        document.getElementById('inp-origen').value  = activo.origen  || '';
+        document.getElementById('inp-destino').value = activo.destino || '';
+        setTimeout(trazarRuta, 400); // esperar a que el mapa esté completamente listo
+      }
+    }, 350);
 
     DB.onNotifs(me.id, notifs => {
       notifs.forEach(n => {
