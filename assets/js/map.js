@@ -380,156 +380,152 @@ function actualizarPosicionChoferEncurso(lat, lng) {
   }
 }
 
-// ── MAPA PASAJERO: TRACKING CONDUCTOR EN TIEMPO REAL ──
-let mapPasajero      = null;
-let markerChoferPas  = null;
-let markerOrigenPas  = null;
-let markerDestinoPas = null;
-let routeChoferPas   = null;
-let trackingPasStop  = null;
-let trackingRideId   = null; // ID del viaje siendo trackeado — evita reiniciar innecesariamente
+// ── TRACKING CONDUCTOR ASIGNADO (usa mapa principal) ──
+let trackingRideId  = null;
+let trackingPasStop = null;
+let markerChoferAsignado = null;
+let routeChoferAsignado  = null;
 
-function iniciarMapaPasajero(ride) {
-  if (!ride || !ride.chofId) return;
+// Icono del conductor asignado: gris=en_camino, azul=en_curso
+function iconoChoferAsignado(estado) {
+  const color  = estado === 'en_curso' ? '#3b82f6' : '#9ca3af';
+  const sombra = estado === 'en_curso' ? 'rgba(59,130,246,.5)' : 'rgba(100,100,100,.4)';
+  return L.divIcon({
+    html: `<div style="position:relative;width:40px;height:40px;filter:drop-shadow(0 2px 8px ${sombra});">
+      <svg viewBox="0 0 64 64" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="28" width="48" height="20" rx="6" fill="${color}"/>
+        <path d="M18 28 L22 14 L42 14 L46 28 Z" fill="${color}" opacity=".85"/>
+        <path d="M23 27 L26 16 L38 16 L41 27 Z" fill="#cceeff" opacity=".7"/>
+        <circle cx="18" cy="48" r="7" fill="#222"/><circle cx="18" cy="48" r="3.5" fill="#888"/>
+        <circle cx="46" cy="48" r="7" fill="#222"/><circle cx="46" cy="48" r="3.5" fill="#888"/>
+        <rect x="8" y="32" width="5" height="4" rx="1" fill="#fff9"/>
+        <rect x="51" y="32" width="5" height="4" rx="1" fill="#ff09"/>
+      </svg>
+      <div style="position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;background:${color};border:2px solid #000;animation:pulse-dot 1.5s infinite;"></div>
+    </div>`,
+    className: '', iconSize: [40, 40], iconAnchor: [20, 40],
+  });
+}
 
-  const wrap   = document.getElementById('map-pasajero-wrap');
-  const etaBar = document.getElementById('eta-pasajero-bar');
-  if (!wrap) return;
+function iniciarTrackingChoferAsignado(ride) {
+  if (!ride || !ride.chofId || !map) return;
 
-  wrap.style.display = 'block';
-  if (etaBar) etaBar.style.display = 'flex';
-
-  // Inicializar mapa Leaflet si no existe
-  if (!mapPasajero) {
-    mapPasajero = L.map('map-pasajero', { zoom: 14, zoomControl: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap', maxZoom: 19
-    }).addTo(mapPasajero);
-  } else {
-    mapPasajero.invalidateSize();
-  }
-
-  // Marcador origen (punto de recogida)
-  if (ride.coordO && !markerOrigenPas) {
-    const icnO = L.divIcon({
-      html: `<div style="background:#f5c518;width:32px;height:32px;border-radius:50%;border:3px solid #000;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5);">📍</div>`,
-      className: '', iconSize: [32,32], iconAnchor: [16,16]
-    });
-    markerOrigenPas = L.marker([ride.coordO.lat, ride.coordO.lng], { icon: icnO })
-      .bindTooltip('Tu ubicación', { permanent: false }).addTo(mapPasajero);
-  }
-
-  // Marcador destino
-  if (ride.coordD && !markerDestinoPas) {
-    const icnD = L.divIcon({
-      html: `<div style="background:#ff6b35;width:32px;height:32px;border-radius:50%;border:3px solid #000;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5);">🎯</div>`,
-      className: '', iconSize: [32,32], iconAnchor: [16,16]
-    });
-    markerDestinoPas = L.marker([ride.coordD.lat, ride.coordD.lng], { icon: icnD })
-      .bindTooltip('Destino', { permanent: false }).addTo(mapPasajero);
-  }
-
-  // Si ya estamos trackeando este viaje, no reiniciar el listener
+  // No reiniciar si ya estamos trackeando el mismo viaje
   if (trackingRideId === ride.id && trackingPasStop) return;
 
-  // Cancelar listener anterior si existe
+  // Cancelar listener anterior
   if (trackingPasStop) { trackingPasStop(); trackingPasStop = null; }
   trackingRideId = ride.id;
 
-  // Escuchar posición del conductor en tiempo real
+  // Mostrar barra ETA
+  const etaBar = document.getElementById('eta-chofer-bar');
+  if (etaBar) etaBar.style.display = 'flex';
+
   trackingPasStop = DB.onUser(ride.chofId, async chofer => {
-    if (!chofer || !chofer.lastLat || !mapPasajero) return;
+    if (!chofer || !chofer.lastLat || !map) return;
 
     const lat = chofer.lastLat, lng = chofer.lastLng;
 
-    // Icono conductor
-    const icnChofer = L.divIcon({
-      html: `<div style="background:#63b3ed;width:36px;height:36px;border-radius:50%;border:3px solid #000;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 10px rgba(0,0,0,.5);">🚗</div>`,
-      className: '', iconSize: [36,36], iconAnchor: [18,18]
-    });
-
-    if (markerChoferPas) {
-      markerChoferPas.setLatLng([lat, lng]);
-    } else {
-      markerChoferPas = L.marker([lat, lng], { icon: icnChofer })
-        .bindTooltip(chofer.nom + ' ' + (chofer.ape || ''), { permanent: false, direction: 'top' })
-        .addTo(mapPasajero);
-    }
-
-    // Ruta y ETA dependen del estado del viaje
+    // Verificar estado actual del viaje
     const rides = await DB.rides();
     const rideActual = rides.find(r => r.id === ride.id);
     if (!rideActual) return;
+    const est = rideActual.est;
 
-    if (routeChoferPas) { mapPasajero.removeLayer(routeChoferPas); routeChoferPas = null; }
+    // Actualizar/crear marcador del conductor asignado
+    if (markerChoferAsignado) {
+      markerChoferAsignado.setLatLng([lat, lng]);
+      markerChoferAsignado.setIcon(iconoChoferAsignado(est));
+    } else {
+      markerChoferAsignado = L.marker([lat, lng], {
+        icon: iconoChoferAsignado(est), zIndexOffset: 500
+      }).bindTooltip(`🚗 ${chofer.nom} ${chofer.ape||''} · ${chofer.veh||''}`, {
+        permanent: false, direction: 'top'
+      }).addTo(map);
+    }
 
-    if (rideActual.est === 'en_camino' && ride.coordO) {
-      // Conductor yendo al pasajero — ruta conductor → origen
-      const destLat = ride.coordO.lat, destLng = ride.coordO.lng;
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${lng},${lat};${destLng},${destLat}?overview=full&geometries=geojson`;
-        const data = await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json();
-        if (data.routes?.length) {
-          const pts = data.routes[0].geometry.coordinates.map(c => [c[1],c[0]]);
-          routeChoferPas = L.polyline(pts, { color:'#63b3ed', weight:4, opacity:.85 }).addTo(mapPasajero);
-        }
-      } catch(e) {}
+    // Ocultar marcador genérico del chofer si existe
+    if (marcadoresChoferes[ride.chofId]) {
+      marcadoresChoferes[ride.chofId].setOpacity(0);
+    }
 
-      // Ajustar vista y calcular ETA
-      mapPasajero.fitBounds([[lat,lng],[destLat,destLng]], { padding:[40,40] });
-      const distKm  = distanciaKm(lat, lng, destLat, destLng);
-      const etaTxt  = document.getElementById('eta-pasajero-txt');
-      const llegoBadge = document.getElementById('eta-llegada-badge');
+    // Limpiar ruta anterior
+    if (routeChoferAsignado) { map.removeLayer(routeChoferAsignado); routeChoferAsignado = null; }
 
+    // Destino de la ruta según estado
+    const destCoord = est === 'en_curso' ? ride.coordD : ride.coordO;
+    if (!destCoord) return;
+
+    // Trazar ruta conductor → destino correspondiente
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${lng},${lat};${destCoord.lng},${destCoord.lat}?overview=full&geometries=geojson`;
+      const data = await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json();
+      if (data.routes?.length) {
+        const pts  = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        const color = est === 'en_curso' ? '#3b82f6' : '#9ca3af';
+        routeChoferAsignado = L.polyline(pts, { color, weight: 4, opacity: .8, dashArray: est === 'en_camino' ? '8 5' : null }).addTo(map);
+      }
+    } catch(e) { /* sin ruta */ }
+
+    // Ajustar vista para incluir conductor y destino
+    try {
+      map.fitBounds([[lat, lng], [destCoord.lat, destCoord.lng]], { padding: [60, 60] });
+    } catch(e) {}
+
+    // ETA y estado en la barra
+    const distKm   = distanciaKm(lat, lng, destCoord.lat, destCoord.lng);
+    const etaMin   = Math.max(1, Math.round((distKm * 1000) / 300));
+    const etaTxt   = document.getElementById('eta-chofer-txt');
+    const etaLabel = document.getElementById('eta-chofer-label');
+    const etaIcon  = document.getElementById('eta-chofer-icon');
+    const llegoBadge = document.getElementById('eta-llegada-badge');
+
+    if (est === 'en_camino') {
+      if (etaLabel) etaLabel.textContent = 'Conductor en camino hacia ti';
+      if (etaIcon)  etaIcon.textContent  = '🚗';
       if (distKm <= 0.1) {
-        if (etaTxt) etaTxt.textContent = '¡El conductor llegó a tu ubicación!';
+        if (etaTxt)     etaTxt.textContent = '¡El conductor llegó a tu ubicación!';
         if (llegoBadge) llegoBadge.style.display = 'block';
-        if (!mapPasajero._llegadaNotificada) {
-          mapPasajero._llegadaNotificada = true;
+        if (!map._llegadaNotificada) {
+          map._llegadaNotificada = true;
           toast('🎉 ¡El conductor llegó! Ya puedes abordar', 'ok');
         }
       } else {
-        const etaMin = Math.max(1, Math.round((distKm * 1000) / 300));
-        if (etaTxt) etaTxt.textContent = `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
+        if (etaTxt)     etaTxt.textContent = `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
         if (llegoBadge) llegoBadge.style.display = 'none';
-        mapPasajero._llegadaNotificada = false;
+        map._llegadaNotificada = false;
       }
-
-    } else if (rideActual.est === 'en_curso' && ride.coordD) {
-      // Viaje en curso — ruta conductor → destino
-      const destLat = ride.coordD.lat, destLng = ride.coordD.lng;
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${lng},${lat};${destLng},${destLat}?overview=full&geometries=geojson`;
-        const data = await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json();
-        if (data.routes?.length) {
-          const pts = data.routes[0].geometry.coordinates.map(c => [c[1],c[0]]);
-          routeChoferPas = L.polyline(pts, { color:'#f5c518', weight:4, opacity:.85 }).addTo(mapPasajero);
-        }
-      } catch(e) {}
-
-      // Ajustar vista conductor → destino
-      if (ride.coordD) mapPasajero.fitBounds([[lat,lng],[ride.coordD.lat,ride.coordD.lng]], { padding:[40,40] });
-
-      const etaTxt = document.getElementById('eta-pasajero-txt');
-      if (etaTxt) {
-        const distKm = distanciaKm(lat, lng, ride.coordD.lat, ride.coordD.lng);
-        const etaMin = Math.max(1, Math.round((distKm * 1000) / 300));
-        etaTxt.textContent = `En camino al destino · ~${etaMin} min`;
-      }
+    } else if (est === 'en_curso') {
+      if (etaLabel) etaLabel.textContent = 'Viaje en curso · destino';
+      if (etaIcon)  etaIcon.textContent  = '🛣️';
+      if (etaTxt)   etaTxt.textContent   = `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
+      if (llegoBadge) llegoBadge.style.display = 'none';
     }
   });
 }
 
-function detenerMapaPasajero() {
+function detenerTrackingChoferAsignado() {
   if (trackingPasStop)  { trackingPasStop(); trackingPasStop = null; }
   trackingRideId = null;
-  const wrap = document.getElementById('map-pasajero-wrap');
-  if (wrap) wrap.style.display = 'none';
-  if (mapPasajero) {
-    if (markerChoferPas)  { mapPasajero.removeLayer(markerChoferPas);  markerChoferPas  = null; }
-    if (markerOrigenPas)  { mapPasajero.removeLayer(markerOrigenPas);  markerOrigenPas  = null; }
-    if (markerDestinoPas) { mapPasajero.removeLayer(markerDestinoPas); markerDestinoPas = null; }
-    if (routeChoferPas)   { mapPasajero.removeLayer(routeChoferPas);   routeChoferPas   = null; }
-    mapPasajero._llegadaNotificada = false;
+
+  // Ocultar barra ETA
+  const etaBar = document.getElementById('eta-chofer-bar');
+  if (etaBar) etaBar.style.display = 'none';
+
+  // Eliminar marcador y ruta del conductor asignado
+  if (map) {
+    if (markerChoferAsignado)  { map.removeLayer(markerChoferAsignado);  markerChoferAsignado  = null; }
+    if (routeChoferAsignado)   { map.removeLayer(routeChoferAsignado);   routeChoferAsignado   = null; }
   }
+
+  // Restaurar visibilidad del marcador genérico del chofer
+  if (map && marcadoresChoferes) {
+    Object.values(marcadoresChoferes).forEach(m => m.setOpacity(1));
+  }
+
+  map && (map._llegadaNotificada = false);
 }
+
+// Aliases para compatibilidad con calls en rides.js
+function iniciarMapaPasajero(ride) { iniciarTrackingChoferAsignado(ride); }
+function detenerMapaPasajero()     { detenerTrackingChoferAsignado(); }
