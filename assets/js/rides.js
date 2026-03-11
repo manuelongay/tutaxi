@@ -66,6 +66,7 @@ async function solicitarViaje() {
   toast('¡Viaje solicitado! Buscando chofer... 🚖', 'ok');
 }
 
+
 // ── RENDER VIAJE ACTIVO (PASAJERO) ────────────────
 async function renderViajeActivo(rides) {
   const activo = rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est));
@@ -73,30 +74,24 @@ async function renderViajeActivo(rides) {
   const card   = document.getElementById('viaje-activo-card');
 
   if (activo) {
-    // Datos del chofer en tiempo real
+    // ── Restaurar coordenadas si se perdieron por recarga ──
+    if (activo.coordO && !coordO) {
+      coordO = activo.coordO;
+      if (activo.origen) document.getElementById('inp-origen').value = activo.origen;
+    }
+    if (activo.coordD && !coordD) {
+      coordD = activo.coordD;
+      if (activo.destino) document.getElementById('inp-destino').value = activo.destino;
+    }
+
+    // ── Datos del chofer ──
     let ratingProm = null, choferUser = null;
     if (activo.chofId) {
       choferUser = await DB.getUser(activo.chofId);
       if (choferUser) ratingProm = choferUser.ratingProm || null;
     }
 
-    // ETA del chofer hacia el punto de recogida
-    let etaHtml = '';
-    if ((activo.est === 'en_camino') && activo.coordO && choferUser && choferUser.lastLat) {
-      const distKm = distanciaKm(choferUser.lastLat, choferUser.lastLng, activo.coordO.lat, activo.coordO.lng);
-      const etaMin = Math.max(1, Math.round((distKm * 1000) / 300));
-      const color  = activo.est === 'en_camino' ? 'var(--green)' : 'var(--accent)';
-      etaHtml = `
-        <div style="display:flex;align-items:center;gap:.6rem;background:rgba(245,197,24,.08);border:1px solid rgba(245,197,24,.2);border-radius:10px;padding:.6rem .9rem;margin-bottom:.8rem;">
-          <span style="font-size:1.3rem;">🕐</span>
-          <div>
-            <div style="font-size:.72rem;color:var(--gray3);">Tiempo estimado de llegada</div>
-            <div style="font-weight:700;color:${color};font-size:1rem;">~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}</div>
-          </div>
-        </div>`;
-    }
-
-    // Foto del chofer
+    // ── Foto del chofer ──
     const fotoChofer = activo.chofFoto
       ? `<img src="${activo.chofFoto}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);flex-shrink:0;">`
       : `<div class="avatar" style="width:48px;height:48px;font-size:1.3rem;flex-shrink:0;">${activo.chofNom ? activo.chofNom[0] : '?'}</div>`;
@@ -110,7 +105,6 @@ async function renderViajeActivo(rides) {
         </div>
         <div class="from-lbl">📍 ${activo.origen}</div>
         <div class="to-lbl" style="margin:.25rem 0 .9rem;">🎯 ${activo.destino}</div>
-        ${etaHtml}
         <div class="price-box" style="margin-bottom:.8rem;">
           <div><div class="price-lbl">Tu oferta</div><div class="price-val">$${activo.precio}</div></div>
           ${activo.chofNom ? `
@@ -144,7 +138,17 @@ async function renderViajeActivo(rides) {
             </div>` : ''}
         </div>
       </div>`;
+
+    // ── Mapa del pasajero: solo cuando hay chofer en camino ──
+    if ((activo.est === 'en_camino') && activo.chofId) {
+      iniciarMapaPasajero(activo);
+    } else {
+      detenerMapaPasajero();
+    }
+
   } else {
+    // ── Limpiar mapa y estado ──
+    detenerMapaPasajero();
     const completado = rides.find(r => r.pasId === me.id && r.est === 'completado' && !r.calificacion);
     if (completado) mostrarModalCalificacion(completado);
     wrap.style.display = 'none'; card.innerHTML = '';
