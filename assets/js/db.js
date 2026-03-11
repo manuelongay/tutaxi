@@ -30,6 +30,13 @@ const DB = {
       cb(snap.exists() ? Object.values(snap.val()) : [])
     ),
 
+  // Escuchar cambios de un usuario específico — devuelve función para detener
+  onUser: (id, cb) => {
+    const ref = firebase.database().ref('users/' + id);
+    ref.on('value', snap => cb(snap.exists() ? snap.val() : null));
+    return () => ref.off('value'); // llamar para detener el listener
+  },
+
   /* ── VIAJES ───────────────────────────────────────────── */
 
   saveRide: (ride) =>
