@@ -39,6 +39,24 @@ function showTab(id, btn) {
 }
 
 // ── TOAST ─────────────────────────────────────────
+// ── CHAT: abrir desde cualquier rol ──────────────────
+function abrirChatViaje() {
+  // Buscar el viaje activo según el rol del usuario
+  DB.rides().then(rides => {
+    let rideActivo = null;
+    if (me.rol === 'chofer') {
+      rideActivo = rides.find(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
+    } else {
+      rideActivo = rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est));
+    }
+    if (rideActivo) {
+      abrirChat(rideActivo.id);
+    } else {
+      toast('No hay viaje activo para chatear', 'err');
+    }
+  });
+}
+
 function toast(msg, type = '') {
   const el = document.getElementById('toast');
   el.textContent = msg;
