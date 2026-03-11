@@ -28,24 +28,56 @@ function initMapaSolicitudes() {
   const el = document.getElementById('map-solicitudes');
   if (!el) return;
 
-  if (!mapSolicitudes) {
-    mapSolicitudes = L.map('map-solicitudes', { zoom: 14, zoomControl: false, dragging: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap', maxZoom: 19
-    }).addTo(mapSolicitudes);
-  } else {
-    mapSolicitudes.invalidateSize();
+  // Función interna que crea el mapa cuando el contenedor tiene dimensiones reales
+  function _crearMapa() {
+    if (!mapSolicitudes) {
+      mapSolicitudes = L.map('map-solicitudes', {
+        zoom: 14, zoomControl: false, dragging: true
+      });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 19
+      }).addTo(mapSolicitudes);
+    }
+
+    // Doble invalidateSize tras un frame de render para asegurar dimensiones correctas
+    requestAnimationFrame(() => {
+      mapSolicitudes.invalidateSize();
+      setTimeout(() => mapSolicitudes.invalidateSize(), 150);
+    });
+
+    // Centrar en posición del conductor
+    const posicionar = (lat, lng) => {
+      mapSolicitudes.setView([lat, lng], 14);
+      actualizarMarcadorYo(lat, lng);
+    };
+
+    if (me && me.lastLat) {
+      posicionar(me.lastLat, me.lastLng);
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => posicionar(pos.coords.latitude, pos.coords.longitude),
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
   }
 
-  // Centrar en posición actual del conductor
-  if (me && me.lastLat) {
-    mapSolicitudes.setView([me.lastLat, me.lastLng], 14);
-    actualizarMarcadorYo(me.lastLat, me.lastLng);
-  } else if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      mapSolicitudes.setView([pos.coords.latitude, pos.coords.longitude], 14);
-      actualizarMarcadorYo(pos.coords.latitude, pos.coords.longitude);
-    }, () => {}, { enableHighAccuracy: true, timeout: 8000 });
+  // Si el contenedor ya tiene altura, crear inmediatamente
+  if (el.offsetHeight > 0) {
+    _crearMapa();
+  } else {
+    // Esperar a que sea visible (tab activo)
+    const obs = new MutationObserver(() => {
+      if (el.offsetHeight > 0) {
+        obs.disconnect();
+        _crearMapa();
+      }
+    });
+    obs.observe(el.closest('.tab-content') || document.body, {
+      attributes: true, attributeFilter: ['class'], subtree: false
+    });
+    // Fallback con timeout
+    setTimeout(() => { obs.disconnect(); if (!mapSolicitudes) _crearMapa(); }, 600);
   }
 }
 
