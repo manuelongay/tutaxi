@@ -151,12 +151,16 @@ function rutaLinea() {
 }
 
 // ── GPS ───────────────────────────────────────────
+let _trackingPropio = null; // watchPosition para pasajero
+
 function miUbicacion(silencioso = false) {
   if (!map) { if (!silencioso) toast('Mapa no listo', 'err'); return; }
   if (!navigator.geolocation) { if (!silencioso) toast('GPS no disponible', 'err'); return; }
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude: lat, longitude: lng } = pos.coords;
     map.setView([lat, lng], 15);
+    // Guardar posición en Firebase para todos los roles
+    if (me) DB.updateUser(me.id, { lastLat: lat, lastLng: lng, lastUpdate: Date.now() });
     if (!coordO) {
       geocReverso(lat, lng, nombre => {
         coordO = { lat, lng };
@@ -170,6 +174,26 @@ function miUbicacion(silencioso = false) {
     }
   }, () => { if (!silencioso) toast('No se pudo obtener GPS', 'err'); },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+}
+
+// Tracking continuo para pasajero (actualiza lastLat cada 5s)
+function iniciarTrackingPasajero() {
+  if (!navigator.geolocation || !me || me.rol === 'chofer') return;
+  if (_trackingPropio) return; // ya activo
+  _trackingPropio = setInterval(() => {
+    navigator.geolocation.getCurrentPosition(pos => {
+      if (!me) return;
+      DB.updateUser(me.id, {
+        lastLat: pos.coords.latitude,
+        lastLng: pos.coords.longitude,
+        lastUpdate: Date.now()
+      });
+      // Actualizar pin propio si existe
+      if (markerO && map) {
+        markerO.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+      }
+    }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+  }, 5000);
 }
 
 function activarPin(tipo) {
@@ -554,6 +578,23 @@ function detenerTrackingChoferAsignado() {
   }
 
   map && (map._llegadaNotificada = false);
+
+  // Restaurar pin 📍 del pasajero en su posición actual
+  if (me && me.rol !== 'chofer' && map) {
+    navigator.geolocation && navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      if (markerO) {
+        markerO.setLatLng([lat, lng]);
+      } else {
+        const icnO = L.divIcon({
+          html: `<div style="background:#f5c518;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #000;box-shadow:0 3px 10px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:15px;">📍</span></div>`,
+          className: '', iconSize: [36,36], iconAnchor: [18,36]
+        });
+        markerO = L.marker([lat, lng], { icon: icnO }).addTo(map);
+      }
+      map.setView([lat, lng], 14);
+    }, () => {}, { enableHighAccuracy: true, maximumAge: 10000, timeout: 8000 });
+  }
 }
 
 // Aliases para compatibilidad con calls en rides.js
