@@ -257,6 +257,29 @@ function limpiar(campo) {
   document.getElementById('route-info').classList.remove('on');
 }
 
+// Limpia completamente el mapa después de un viaje (pasajero)
+function limpiarMapaViaje() {
+  // Marcadores origen y destino
+  if (markerO) { map && map.removeLayer(markerO); markerO = null; }
+  if (markerD) { map && map.removeLayer(markerD); markerD = null; }
+  // Ruta trazada
+  if (routeLine) { map && map.removeLayer(routeLine); routeLine = null; }
+  // Coordenadas en memoria
+  coordO = null; coordD = null;
+  // Campos de texto
+  ['origen','destino'].forEach(c => {
+    const inp = document.getElementById('inp-' + c);
+    const cl  = document.getElementById('cl-'  + c);
+    const dd  = document.getElementById('dd-'  + c);
+    if (inp) inp.value = '';
+    if (cl)  cl.style.display  = 'none';
+    if (dd)  dd.style.display  = 'none';
+  });
+  // Barra de info de ruta
+  const ri = document.getElementById('route-info');
+  if (ri) ri.classList.remove('on');
+}
+
 // ── ICONOS CHOFERES EN MAPA ───────────────────────
 async function actualizarIconosChoferes(rides) {
   if (!map) return;
