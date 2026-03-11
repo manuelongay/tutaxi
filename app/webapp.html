@@ -210,8 +210,8 @@
       <label class="switch"><input type="checkbox" id="driver-sw" onchange="toggleChofer()"><span class="sw-sl"></span></label>
     </div>
     <!-- Mini-mapa posición del conductor -->
-    <div style="border-radius:14px;overflow:hidden;margin-bottom:1rem;border:1px solid rgba(255,255,255,.08);position:relative;">
-      <div id="map-solicitudes" style="width:100%;height:200px;background:#1c1c2e;"></div>
+    <div style="border-radius:14px;overflow:hidden;margin-bottom:1rem;border:1px solid rgba(255,255,255,.08);position:relative;z-index:0;">
+      <div id="map-solicitudes" style="width:100%;height:200px;background:#1c1c2e;z-index:0;"></div>
       <div style="position:absolute;top:.5rem;left:.5rem;background:rgba(10,10,20,.8);border-radius:8px;padding:.25rem .6rem;font-size:.72rem;color:var(--gray3);z-index:500;pointer-events:none;">
         📍 Tu posición
       </div>
