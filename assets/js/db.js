@@ -69,6 +69,26 @@ const DB = {
   markNotifRead: (id) =>
     firebase.database().ref(`notifs/${id}`).update({ leida: true }),
 
+
+  /* ── CHAT ─────────────────────────────────────────── */
+
+  sendMsg: (rideId, msg) =>
+    firebase.database().ref(`chat/${rideId}/${msg.id}`).set(msg),
+
+  onChat: (rideId, cb) => {
+    const ref = firebase.database().ref(`chat/${rideId}`).orderByChild('ts');
+    ref.on('value', snap => {
+      cb(snap.exists() ? Object.values(snap.val()).sort((a,b) => a.ts - b.ts) : []);
+    });
+    return () => ref.off('value');
+  },
+
+  markChatRead: (rideId, msgId) =>
+    firebase.database().ref(`chat/${rideId}/${msgId}`).update({ leido: true }),
+
+  clearChat: (rideId) =>
+    firebase.database().ref(`chat/${rideId}`).remove(),
+
   /* ── SESIÓN (localStorage — local por dispositivo) ────── */
 
   session:      () => JSON.parse(localStorage.getItem('tt_session') || 'null'),
