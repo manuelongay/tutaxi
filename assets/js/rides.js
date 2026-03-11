@@ -175,7 +175,10 @@ async function completarViaje(id) {
         leida: false, fecha: new Date().toISOString() });
     }
   }
-  if (me.rol === 'pasajero') detenerMapaPasajero();
+  if (me.rol === 'pasajero') {
+    detenerMapaPasajero();
+    limpiarMapaViaje();
+  }
   toast('¡Completado! ⭐', 'ok');
 }
 
@@ -271,7 +274,10 @@ async function confirmarCancelacion(rideId, quien) {
 
   document.getElementById('modal-cancelacion').remove();
   motivoSelIdx = -1;
-  if (me.rol === 'pasajero') detenerMapaPasajero();
+  if (me.rol === 'pasajero') {
+    detenerMapaPasajero();
+    limpiarMapaViaje();
+  }
   toast('Viaje cancelado');
 }
 
