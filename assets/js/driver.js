@@ -3,8 +3,11 @@
    Disponibilidad, tracking GPS y mapa "En curso"
    ============================================================ */
 
-let driverOn   = false;
-let mapEncurso = null;
+let driverOn        = false;
+let mapEncurso      = null;
+let mapSolicitudes  = null;   // mini-mapa en pestaña Solicitudes
+let markerYo        = null;   // marcador azul "tú" en mini-mapa
+let marcadoresMini  = {};     // otros conductores en mini-mapa
 
 // ── DISPONIBILIDAD ────────────────────────────────
 function toggleChofer() {
@@ -18,6 +21,103 @@ function toggleChofer() {
     document.getElementById('solicitudes-list').innerHTML =
       '<div class="empty"><div class="empty-icon">📡</div><div class="empty-title">Activa tu disponibilidad</div></div>';
   }
+}
+
+// ── MINI-MAPA SOLICITUDES ────────────────────────
+function initMapaSolicitudes() {
+  const el = document.getElementById('map-solicitudes');
+  if (!el) return;
+
+  if (!mapSolicitudes) {
+    mapSolicitudes = L.map('map-solicitudes', { zoom: 14, zoomControl: false, dragging: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap', maxZoom: 19
+    }).addTo(mapSolicitudes);
+  } else {
+    mapSolicitudes.invalidateSize();
+  }
+
+  // Centrar en posición actual del conductor
+  if (me && me.lastLat) {
+    mapSolicitudes.setView([me.lastLat, me.lastLng], 14);
+    actualizarMarcadorYo(me.lastLat, me.lastLng);
+  } else if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      mapSolicitudes.setView([pos.coords.latitude, pos.coords.longitude], 14);
+      actualizarMarcadorYo(pos.coords.latitude, pos.coords.longitude);
+    }, () => {}, { enableHighAccuracy: true, timeout: 8000 });
+  }
+}
+
+function actualizarMarcadorYo(lat, lng) {
+  if (!mapSolicitudes) return;
+
+  const icono = L.divIcon({
+    html: `<div style="position:relative;filter:drop-shadow(0 2px 8px rgba(59,130,246,.7));">
+      <svg viewBox="0 0 64 64" width="38" height="38" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="28" width="48" height="20" rx="6" fill="#3b82f6"/>
+        <path d="M18 28 L22 14 L42 14 L46 28 Z" fill="#3b82f6" opacity=".85"/>
+        <path d="M23 27 L26 16 L38 16 L41 27 Z" fill="#cceeff" opacity=".7"/>
+        <circle cx="18" cy="48" r="7" fill="#222"/><circle cx="18" cy="48" r="3.5" fill="#888"/>
+        <circle cx="46" cy="48" r="7" fill="#222"/><circle cx="46" cy="48" r="3.5" fill="#888"/>
+        <rect x="8" y="32" width="5" height="4" rx="1" fill="#fff9"/>
+        <rect x="51" y="32" width="5" height="4" rx="1" fill="#ff09"/>
+      </svg>
+      <div style="position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:#3b82f6;border:2px solid #000;animation:pulse-dot 1.5s infinite;"></div>
+    </div>`,
+    className: '', iconSize: [38, 38], iconAnchor: [19, 38]
+  });
+
+  if (markerYo) {
+    markerYo.setLatLng([lat, lng]);
+    markerYo.setIcon(icono);
+  } else {
+    markerYo = L.marker([lat, lng], { icon: icono, zIndexOffset: 500 })
+      .bindTooltip('📍 Tú', { permanent: false, direction: 'top' })
+      .addTo(mapSolicitudes);
+  }
+  mapSolicitudes.setView([lat, lng], mapSolicitudes.getZoom());
+}
+
+function actualizarOtrosChoferesMini(users, rides) {
+  if (!mapSolicitudes) return;
+  const choferes = users.filter(u =>
+    u.rol === 'chofer' && u.estatus === 'activo' && u.lastLat && u.id !== (me && me.id)
+  );
+
+  // Limpiar marcadores que ya no existen
+  Object.keys(marcadoresMini).forEach(id => {
+    if (!choferes.find(c => c.id === id)) {
+      mapSolicitudes.removeLayer(marcadoresMini[id]);
+      delete marcadoresMini[id];
+    }
+  });
+
+  choferes.forEach(c => {
+    const ocupado = rides.some(r => r.chofId === c.id && ['en_camino','en_curso'].includes(r.est));
+    const color   = ocupado ? '#ef4444' : '#9ca3af';
+    const icono   = L.divIcon({
+      html: `<div style="filter:drop-shadow(0 1px 4px rgba(0,0,0,.5));">
+        <svg viewBox="0 0 64 64" width="28" height="28" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="28" width="48" height="20" rx="6" fill="${color}"/>
+          <path d="M18 28 L22 14 L42 14 L46 28 Z" fill="${color}" opacity=".85"/>
+          <path d="M23 27 L26 16 L38 16 L41 27 Z" fill="#cceeff" opacity=".6"/>
+          <circle cx="18" cy="48" r="7" fill="#222"/><circle cx="18" cy="48" r="3.5" fill="#888"/>
+          <circle cx="46" cy="48" r="7" fill="#222"/><circle cx="46" cy="48" r="3.5" fill="#888"/>
+        </svg>
+      </div>`,
+      className: '', iconSize: [28, 28], iconAnchor: [14, 28]
+    });
+
+    if (marcadoresMini[c.id]) {
+      marcadoresMini[c.id].setLatLng([c.lastLat, c.lastLng]);
+      marcadoresMini[c.id].setIcon(icono);
+    } else {
+      marcadoresMini[c.id] = L.marker([c.lastLat, c.lastLng], { icon: icono })
+        .bindTooltip(`${c.nom} ${c.ape||''} · ${ocupado ? 'Ocupado' : 'Libre'}`, { direction: 'top' })
+        .addTo(mapSolicitudes);
+    }
+  });
 }
 
 // ── TRACKING GPS ──────────────────────────────────
@@ -35,6 +135,8 @@ function iniciarTracking() {
       });
       // Actualizar posición en mapa En curso si está activo
       actualizarPosicionChoferEncurso(lat, lng);
+      // Actualizar marcador propio en mini-mapa solicitudes
+      actualizarMarcadorYo(lat, lng);
     }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
   }, 5000);
 }
