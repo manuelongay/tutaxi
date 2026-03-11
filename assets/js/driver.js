@@ -59,9 +59,11 @@ function initMapaEncurso(ride) {
 function actualizarMapaEncurso(ride) {
   if (!mapEncurso || !ride) return;
 
-  // Limpiar capas previas excepto el tile layer
+  // Limpiar capas previas excepto tile layer y marcador del conductor
   mapEncurso.eachLayer(layer => {
-    if (!(layer instanceof L.TileLayer)) mapEncurso.removeLayer(layer);
+    if (layer instanceof L.TileLayer) return;
+    if (layer === markerChoferEncurso) return; // no borrar posición del conductor
+    mapEncurso.removeLayer(layer);
   });
 
   const iconOrigen = L.divIcon({
@@ -92,20 +94,58 @@ function actualizarMapaEncurso(ride) {
     bounds.push([ride.coordD.lat, ride.coordD.lng]);
   }
 
-  // Trazar ruta entre origen y destino
-  if (ride.coordO && ride.coordD) {
-    const url = `https://router.project-osrm.org/route/v1/driving/${ride.coordO.lng},${ride.coordO.lat};${ride.coordD.lng},${ride.coordD.lat}?overview=full&geometries=geojson`;
-    fetch(url).then(r => r.json()).then(data => {
+  // Trazar ruta dinámica: conductor → destino según estado
+  trazarRutaEncurso(ride);
+}
+
+let routeEncurso = null; // ruta activa en el mapa En curso
+
+async function trazarRutaEncurso(ride) {
+  if (!mapEncurso || !ride) return;
+
+  // Limpiar ruta previa
+  if (routeEncurso) { mapEncurso.removeLayer(routeEncurso); routeEncurso = null; }
+
+  // Determinar origen de la ruta: posición actual del conductor si disponible, si no: coordO
+  let fromLat, fromLng;
+  if (markerChoferEncurso) {
+    const pos = markerChoferEncurso.getLatLng();
+    fromLat = pos.lat; fromLng = pos.lng;
+  } else if (me && me.lastLat) {
+    fromLat = me.lastLat; fromLng = me.lastLng;
+  }
+
+  // Destino según estado del viaje
+  const destCoord = ride.est === 'en_curso' ? ride.coordD : ride.coordO;
+  const color     = ride.est === 'en_curso' ? '#22c55e' : '#9ca3af';
+  const dash      = ride.est === 'en_camino' ? '8 5' : null;
+
+  if (!destCoord) return;
+
+  const bounds = [];
+  if (fromLat) bounds.push([fromLat, fromLng]);
+  if (destCoord) bounds.push([destCoord.lat, destCoord.lng]);
+
+  // Trazar ruta OSRM
+  if (fromLat && destCoord) {
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${destCoord.lng},${destCoord.lat}?overview=full&geometries=geojson`;
+      const data = await (await fetch(url, { signal: AbortSignal.timeout(6000) })).json();
       if (data.routes?.length) {
         const pts = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        L.polyline(pts, { color: '#f5c518', weight: 5, opacity: .9 }).addTo(mapEncurso);
-        mapEncurso.fitBounds(L.polyline(pts).getBounds(), { padding: [40, 40] });
-      } else if (bounds.length === 2) {
-        mapEncurso.fitBounds(bounds, { padding: [40, 40] });
+        routeEncurso = L.polyline(pts, { color, weight: 5, opacity: .9, dashArray: dash }).addTo(mapEncurso);
+        mapEncurso.fitBounds(routeEncurso.getBounds(), { padding: [50, 50] });
+        return;
       }
-    }).catch(() => {
-      if (bounds.length === 2) mapEncurso.fitBounds(bounds, { padding: [40, 40] });
-    });
+    } catch(e) {}
+  }
+
+  // Fallback: línea recta o fitBounds de los puntos conocidos
+  if (bounds.length === 2) {
+    routeEncurso = L.polyline(bounds, { color, weight: 4, opacity: .7, dashArray: '8 6' }).addTo(mapEncurso);
+    mapEncurso.fitBounds(bounds, { padding: [50, 50] });
+  } else if (bounds.length === 1) {
+    mapEncurso.setView(bounds[0], 15);
   }
 }
 
@@ -189,5 +229,8 @@ function mostrarPestanaEncurso(ride) {
   const tabEncurso = document.getElementById('t-encurso');
   if (tabEncurso && tabEncurso.classList.contains('active')) {
     setTimeout(() => initMapaEncurso(ride), 200);
+  } else {
+    // Inicializar de todas formas para que esté listo al cambiar de pestaña
+    setTimeout(() => initMapaEncurso(ride), 300);
   }
 }
