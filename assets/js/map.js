@@ -363,3 +363,109 @@ function actualizarPosicionChoferEncurso(lat, lng) {
       .addTo(mapEncurso);
   }
 }
+
+// ── MAPA PASAJERO: TRACKING CONDUCTOR EN TIEMPO REAL ──
+let mapPasajero     = null;
+let markerChoferPas = null;
+let markerOrigenPas = null;
+let routeChoferPas  = null;
+let trackingPasStop = null;
+
+function iniciarMapaPasajero(ride) {
+  const wrap = document.getElementById('map-pasajero-wrap');
+  const etaBar = document.getElementById('eta-pasajero-bar');
+  if (!wrap) return;
+
+  // Solo mostrar si hay chofer asignado
+  if (!ride.chofId || !ride.coordO) { wrap.style.display = 'none'; return; }
+
+  wrap.style.display = 'block';
+  if (etaBar) etaBar.style.display = 'flex';
+
+  // Inicializar mapa si no existe
+  if (!mapPasajero) {
+    mapPasajero = L.map('map-pasajero', { zoom: 14, zoomControl: false, dragging: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap', maxZoom: 19
+    }).addTo(mapPasajero);
+  }
+
+  // Marcador punto de recogida (pasajero)
+  if (!markerOrigenPas) {
+    const iconOrigen = L.divIcon({
+      html: `<div style="background:#f5c518;width:32px;height:32px;border-radius:50%;border:3px solid #000;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5);">📍</div>`,
+      className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+    });
+    markerOrigenPas = L.marker([ride.coordO.lat, ride.coordO.lng], { icon: iconOrigen })
+      .bindTooltip('Tu ubicación', { permanent: false })
+      .addTo(mapPasajero);
+  }
+
+  // Escuchar posición del conductor
+  trackingPasStop = DB.onUser(ride.chofId, async chofer => {
+    if (!chofer || !chofer.lastLat || !mapPasajero) return;
+
+    const lat = chofer.lastLat, lng = chofer.lastLng;
+    const iconChofer = L.divIcon({
+      html: `<div style="background:#63b3ed;width:36px;height:36px;border-radius:50%;border:3px solid #000;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 10px rgba(0,0,0,.5);">🚗</div>`,
+      className: '', iconSize: [36, 36], iconAnchor: [18, 18]
+    });
+
+    if (markerChoferPas) {
+      markerChoferPas.setLatLng([lat, lng]);
+    } else {
+      markerChoferPas = L.marker([lat, lng], { icon: iconChofer })
+        .bindTooltip(chofer.nom + ' ' + (chofer.ape || ''), { permanent: false, direction: 'top' })
+        .addTo(mapPasajero);
+    }
+
+    // Centrar mapa entre conductor y origen
+    mapPasajero.fitBounds([[lat, lng], [ride.coordO.lat, ride.coordO.lng]], { padding: [40, 40] });
+
+    // Trazar ruta conductor → origen pasajero
+    if (routeChoferPas) { mapPasajero.removeLayer(routeChoferPas); routeChoferPas = null; }
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${lng},${lat};${ride.coordO.lng},${ride.coordO.lat}?overview=full&geometries=geojson`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      const data = await resp.json();
+      if (data.routes?.length) {
+        const pts = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        routeChoferPas = L.polyline(pts, { color: '#63b3ed', weight: 4, opacity: .8 }).addTo(mapPasajero);
+      }
+    } catch(e) { /* sin ruta */ }
+
+    // Calcular ETA
+    const distKm = distanciaKm(lat, lng, ride.coordO.lat, ride.coordO.lng);
+    const etaTxt = document.getElementById('eta-pasajero-txt');
+    const llegoBadge = document.getElementById('eta-llegada-badge');
+    const LLEGADA_M = 0.1; // 100 metros
+
+    if (distKm <= LLEGADA_M) {
+      // Conductor llegó
+      if (etaTxt)    etaTxt.textContent = '¡El conductor llegó a tu ubicación!';
+      if (llegoBadge) llegoBadge.style.display = 'block';
+      // Notificación visual solo una vez
+      if (!mapPasajero._llegadaNotificada) {
+        mapPasajero._llegadaNotificada = true;
+        toast('🎉 ¡El conductor llegó! Ya puedes abordar', 'ok');
+      }
+    } else {
+      const etaMin = Math.max(1, Math.round((distKm * 1000) / 300));
+      if (etaTxt) etaTxt.textContent = `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
+      if (llegoBadge) llegoBadge.style.display = 'none';
+    }
+  });
+}
+
+function detenerMapaPasajero() {
+  if (trackingPasStop) { trackingPasStop(); trackingPasStop = null; }
+  const wrap = document.getElementById('map-pasajero-wrap');
+  if (wrap) wrap.style.display = 'none';
+  // Limpiar estado para próximo viaje
+  if (mapPasajero) {
+    if (markerChoferPas) { mapPasajero.removeLayer(markerChoferPas); markerChoferPas = null; }
+    if (markerOrigenPas) { mapPasajero.removeLayer(markerOrigenPas); markerOrigenPas = null; }
+    if (routeChoferPas)  { mapPasajero.removeLayer(routeChoferPas);  routeChoferPas  = null; }
+    mapPasajero._llegadaNotificada = false;
+  }
+}
