@@ -139,12 +139,16 @@ async function renderViajeActivo(rides) {
         </div>
       </div>`;
 
-    // ── Mapa del pasajero: solo cuando hay chofer en camino ──
-    if ((activo.est === 'en_camino') && activo.chofId) {
+    // ── Mapa del pasajero: durante en_camino y en_curso ──
+    if ((activo.est === 'en_camino' || activo.est === 'en_curso') && activo.chofId) {
       iniciarMapaPasajero(activo);
     } else {
       detenerMapaPasajero();
     }
+
+    // ── Ocultar botón solicitar viaje si hay uno activo ──
+    const btnSolicitar = document.getElementById('btn-solicitar');
+    if (btnSolicitar) btnSolicitar.style.display = 'none';
 
   } else {
     // ── Limpiar mapa y estado ──
@@ -152,6 +156,9 @@ async function renderViajeActivo(rides) {
     const completado = rides.find(r => r.pasId === me.id && r.est === 'completado' && !r.calificacion);
     if (completado) mostrarModalCalificacion(completado);
     wrap.style.display = 'none'; card.innerHTML = '';
+    // Mostrar botón solicitar viaje
+    const btnSolicitar = document.getElementById('btn-solicitar');
+    if (btnSolicitar) btnSolicitar.style.display = 'block';
   }
 }
 
