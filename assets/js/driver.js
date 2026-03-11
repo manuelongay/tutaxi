@@ -25,59 +25,50 @@ function toggleChofer() {
 
 // ── MINI-MAPA SOLICITUDES ────────────────────────
 function initMapaSolicitudes() {
+  // Destruir instancia previa si existe (evita conflictos de re-init)
+  if (mapSolicitudes) {
+    mapSolicitudes.remove();
+    mapSolicitudes = null;
+    markerYo = null;
+    marcadoresMini = {};
+  }
+
   const el = document.getElementById('map-solicitudes');
   if (!el) return;
 
-  // Función interna que crea el mapa cuando el contenedor tiene dimensiones reales
-  function _crearMapa() {
-    if (!mapSolicitudes) {
-      mapSolicitudes = L.map('map-solicitudes', {
-        zoom: 14, zoomControl: false, dragging: true
-      });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap', maxZoom: 19
-      }).addTo(mapSolicitudes);
-    }
+  // Crear mapa directamente — el contenedor ya es visible cuando el conductor inicia
+  mapSolicitudes = L.map('map-solicitudes', {
+    zoom: 14,
+    zoomControl: false,
+    dragging: true,
+    tap: false
+  });
 
-    // Doble invalidateSize tras un frame de render para asegurar dimensiones correctas
-    requestAnimationFrame(() => {
-      mapSolicitudes.invalidateSize();
-      setTimeout(() => mapSolicitudes.invalidateSize(), 150);
-    });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 19
+  }).addTo(mapSolicitudes);
 
-    // Centrar en posición del conductor
-    const posicionar = (lat, lng) => {
-      mapSolicitudes.setView([lat, lng], 14);
-      actualizarMarcadorYo(lat, lng);
-    };
+  // Posicionar en ubicación del conductor
+  const posicionar = (lat, lng) => {
+    mapSolicitudes.setView([lat, lng], 14);
+    actualizarMarcadorYo(lat, lng);
+    // Forzar re-render de tiles tras posicionar
+    setTimeout(() => mapSolicitudes && mapSolicitudes.invalidateSize(), 200);
+  };
 
-    if (me && me.lastLat) {
-      posicionar(me.lastLat, me.lastLng);
-    } else if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        pos => posicionar(pos.coords.latitude, pos.coords.longitude),
-        () => {},
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
-    }
-  }
-
-  // Si el contenedor ya tiene altura, crear inmediatamente
-  if (el.offsetHeight > 0) {
-    _crearMapa();
+  if (me && me.lastLat) {
+    posicionar(me.lastLat, me.lastLng);
+  } else if (navigator.geolocation) {
+    // Vista inicial en Campeche mientras llega el GPS real
+    mapSolicitudes.setView([19.8301, -90.5349], 13);
+    navigator.geolocation.getCurrentPosition(
+      pos => posicionar(pos.coords.latitude, pos.coords.longitude),
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   } else {
-    // Esperar a que sea visible (tab activo)
-    const obs = new MutationObserver(() => {
-      if (el.offsetHeight > 0) {
-        obs.disconnect();
-        _crearMapa();
-      }
-    });
-    obs.observe(el.closest('.tab-content') || document.body, {
-      attributes: true, attributeFilter: ['class'], subtree: false
-    });
-    // Fallback con timeout
-    setTimeout(() => { obs.disconnect(); if (!mapSolicitudes) _crearMapa(); }, 600);
+    mapSolicitudes.setView([19.8301, -90.5349], 13);
   }
 }
 
