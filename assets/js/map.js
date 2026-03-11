@@ -409,10 +409,10 @@ let trackingPasStop = null;
 let markerChoferAsignado = null;
 let routeChoferAsignado  = null;
 
-// Icono del conductor asignado: gris=en_camino, azul=en_curso
+// Icono del conductor asignado: gris=en_camino, verde=en_curso
 function iconoChoferAsignado(estado) {
-  const color  = estado === 'en_curso' ? '#3b82f6' : '#9ca3af';
-  const sombra = estado === 'en_curso' ? 'rgba(59,130,246,.5)' : 'rgba(100,100,100,.4)';
+  const color  = estado === 'en_curso' ? '#22c55e' : '#9ca3af';
+  const sombra = estado === 'en_curso' ? 'rgba(34,197,94,.5)' : 'rgba(100,100,100,.4)';
   return L.divIcon({
     html: `<div style="position:relative;width:40px;height:40px;filter:drop-shadow(0 2px 8px ${sombra});">
       <svg viewBox="0 0 64 64" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
@@ -485,7 +485,7 @@ function iniciarTrackingChoferAsignado(ride) {
       const data = await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json();
       if (data.routes?.length) {
         const pts  = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        const color = est === 'en_curso' ? '#3b82f6' : '#9ca3af';
+        const color = est === 'en_curso' ? '#22c55e' : '#9ca3af';
         routeChoferAsignado = L.polyline(pts, { color, weight: 4, opacity: .8, dashArray: est === 'en_camino' ? '8 5' : null }).addTo(map);
       }
     } catch(e) { /* sin ruta */ }
@@ -521,6 +521,7 @@ function iniciarTrackingChoferAsignado(ride) {
     } else if (est === 'en_curso') {
       if (etaLabel) etaLabel.textContent = 'Viaje en curso · destino';
       if (etaIcon)  etaIcon.textContent  = '🛣️';
+      if (etaBar)   etaBar.style.borderLeft = '3px solid #22c55e';
       if (etaTxt)   etaTxt.textContent   = `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
       if (llegoBadge) llegoBadge.style.display = 'none';
     }
@@ -535,15 +536,21 @@ function detenerTrackingChoferAsignado() {
   const etaBar = document.getElementById('eta-chofer-bar');
   if (etaBar) etaBar.style.display = 'none';
 
-  // Eliminar marcador y ruta del conductor asignado
+  // Eliminar marcador y ruta del conductor asignado del mapa principal
   if (map) {
-    if (markerChoferAsignado)  { map.removeLayer(markerChoferAsignado);  markerChoferAsignado  = null; }
-    if (routeChoferAsignado)   { map.removeLayer(routeChoferAsignado);   routeChoferAsignado   = null; }
+    if (markerChoferAsignado) { map.removeLayer(markerChoferAsignado); markerChoferAsignado = null; }
+    if (routeChoferAsignado)  { map.removeLayer(routeChoferAsignado);  routeChoferAsignado  = null; }
   }
 
-  // Restaurar visibilidad del marcador genérico del chofer
+  // Limpiar también marcador del mapa en curso del conductor
+  if (mapEncurso && markerChoferEncurso) {
+    mapEncurso.removeLayer(markerChoferEncurso);
+    markerChoferEncurso = null;
+  }
+
+  // Restaurar visibilidad de todos los marcadores genéricos
   if (map && marcadoresChoferes) {
-    Object.values(marcadoresChoferes).forEach(m => m.setOpacity(1));
+    Object.values(marcadoresChoferes).forEach(m => { m.setOpacity(1); m.setZIndexOffset(100); });
   }
 
   map && (map._llegadaNotificada = false);
