@@ -290,33 +290,39 @@ function distanciaKm(lat1, lng1, lat2, lng2) {
 }
 
 function iniciarTrackingMapa() {
+  // Cache de rides en tiempo real para usarlo en el listener de users
+  let ridesCache = [];
+  DB.onRides(rides => {
+    ridesCache = rides;
+    // Cuando cambia el estado de un viaje, actualizar iconos inmediatamente
+    if (!map) return;
+    Object.keys(marcadoresChoferes).forEach(chofId => {
+      const tieneViaje = ridesCache.some(r => r.chofId === chofId && ['en_camino','en_curso'].includes(r.est));
+      marcadoresChoferes[chofId].setIcon(iconoVehiculo(tieneViaje));
+    });
+  });
+
   DB.onUsers(async users => {
     if (!map) return;
-    const rides    = await DB.rides();
-    const radioKm  = tarifasCache.radioKm || 3;
-
-    // Obtener centro del mapa (posición del pasajero)
-    const centro = map.getCenter();
+    const radioKm = tarifasCache.radioKm || 3;
+    const centro  = map.getCenter();
 
     const choferes = users.filter(u => {
       if (u.rol !== 'chofer' || u.estatus !== 'activo' || !u.lastLat) return false;
-      // Filtrar por radio de distancia
-      const dist = distanciaKm(centro.lat, centro.lng, u.lastLat, u.lastLng);
-      return dist <= radioKm;
+      return distanciaKm(centro.lat, centro.lng, u.lastLat, u.lastLng) <= radioKm;
     });
 
-    // Eliminar marcadores de choferes que ya no están en el radio
+    // Eliminar marcadores fuera de radio
     Object.keys(marcadoresChoferes).forEach(id => {
-      const sigueActivo = choferes.find(c => c.id === id);
-      if (!sigueActivo) {
+      if (!choferes.find(c => c.id === id)) {
         map.removeLayer(marcadoresChoferes[id]);
         delete marcadoresChoferes[id];
       }
     });
 
     choferes.forEach(chofer => {
-      const tieneViaje = rides.some(r => r.chofId === chofer.id && ['en_camino','en_curso'].includes(r.est));
-      const lat = chofer.lastLat, lng = chofer.lastLng;
+      const tieneViaje = ridesCache.some(r => r.chofId === chofer.id && ['en_camino','en_curso'].includes(r.est));
+      const lat  = chofer.lastLat, lng = chofer.lastLng;
       const dist = distanciaKm(centro.lat, centro.lng, lat, lng).toFixed(1);
 
       if (marcadoresChoferes[chofer.id]) {
@@ -325,13 +331,23 @@ function iniciarTrackingMapa() {
       } else {
         const m = L.marker([lat, lng], { icon: iconoVehiculo(tieneViaje), zIndexOffset: 100 }).addTo(map);
         m.bindTooltip(
-          `🚗 ${chofer.nom} ${chofer.ape || ''}<br>${chofer.veh || ''} | ${chofer.pla || ''}<br>📍 ${dist} km`,
+          `🚗 ${chofer.nom} ${chofer.ape||''}<br>${chofer.veh||''} | ${chofer.pla||''}<br>📍 ${dist} km`,
           { permanent: false, direction: 'top' }
         );
         marcadoresChoferes[chofer.id] = m;
       }
     });
   });
+}
+
+// ── ACTUALIZAR ICONO DEL PROPIO CONDUCTOR ─────────
+// Llamar cuando el conductor cambia de estado para que su icono se actualice
+function actualizarIconoPropio(rides) {
+  if (!me || me.rol !== 'chofer') return;
+  const tieneViaje = rides.some(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
+  if (marcadoresChoferes[me.id]) {
+    marcadoresChoferes[me.id].setIcon(iconoVehiculo(tieneViaje));
+  }
 }
 
 // ── MARCADOR DEL CONDUCTOR EN MAPA EN CURSO ───────
