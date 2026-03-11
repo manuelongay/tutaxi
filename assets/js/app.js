@@ -103,7 +103,11 @@ function initApp() {
         coordD = activo.coordD;
         document.getElementById('inp-origen').value  = activo.origen  || '';
         document.getElementById('inp-destino').value = activo.destino || '';
-        setTimeout(trazarRuta, 400); // esperar a que el mapa esté completamente listo
+        setTimeout(() => {
+          ponerPin('origen',  coordO.lat, coordO.lng);
+          ponerPin('destino', coordD.lat, coordD.lng);
+          trazarRuta();
+        }, 400);
       }
     }, 350);
 
