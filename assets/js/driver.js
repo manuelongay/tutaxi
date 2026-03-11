@@ -230,7 +230,11 @@ function mostrarPestanaEncurso(ride) {
   if (tabEncurso && tabEncurso.classList.contains('active')) {
     setTimeout(() => initMapaEncurso(ride), 200);
   } else {
-    // Inicializar de todas formas para que esté listo al cambiar de pestaña
     setTimeout(() => initMapaEncurso(ride), 300);
+  }
+
+  // Iniciar listener de chat en background (para badge de no leídos)
+  if (typeof escucharChatBackground === 'function') {
+    escucharChatBackground(ride.id);
   }
 }
