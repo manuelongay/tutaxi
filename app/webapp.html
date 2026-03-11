@@ -153,7 +153,15 @@
         <div class="dropdown" id="dd-destino"></div>
       </div>
       <div class="map-label">Mapa interactivo</div>
-      <div id="map"></div>
+      <div id="map" style="position:relative;"></div>
+      <div id="eta-chofer-bar" style="display:none;position:absolute;bottom:48px;left:1rem;right:1rem;background:rgba(10,10,20,.88);backdrop-filter:blur(6px);padding:.6rem 1rem;border-radius:14px;display:flex;align-items:center;gap:.7rem;z-index:800;pointer-events:none;">
+        <span style="font-size:1.3rem;" id="eta-chofer-icon">🚗</span>
+        <div style="flex:1;">
+          <div style="font-size:.7rem;color:var(--gray3);" id="eta-chofer-label">Conductor en camino</div>
+          <div id="eta-chofer-txt" style="font-weight:700;color:var(--accent);font-size:.9rem;">Calculando...</div>
+        </div>
+        <div id="eta-llegada-badge" style="display:none;background:var(--green);color:#fff;font-size:.72rem;font-weight:700;padding:.25rem .65rem;border-radius:20px;">¡Llegó! 📍</div>
+      </div>
       <div class="map-controls">
         <button class="map-btn" onclick="miUbicacion()">📡 Mi ubicación</button>
         <button class="map-btn" id="btn-po" onclick="activarPin('origen')">📍 Pin origen</button>
@@ -185,18 +193,7 @@
     <div id="viaje-activo-wrap" style="display:none;">
       <div class="sec-label">Viaje en curso</div>
       <div id="viaje-activo-card"></div>
-      <!-- Mapa del pasajero: posición del conductor en tiempo real -->
-      <div id="map-pasajero-wrap" style="display:none;margin-top:.8rem;border-radius:16px;overflow:hidden;position:relative;">
-        <div id="map-pasajero" style="width:100%;height:260px;background:#1c1c2e;"></div>
-        <div id="eta-pasajero-bar" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(10,10,20,.88);backdrop-filter:blur(6px);padding:.6rem 1rem;display:flex;align-items:center;gap:.7rem;z-index:999;">
-          <span style="font-size:1.4rem;">🚗</span>
-          <div style="flex:1;">
-            <div style="font-size:.72rem;color:var(--gray3);">Conductor en camino</div>
-            <div id="eta-pasajero-txt" style="font-weight:700;color:var(--accent);font-size:.95rem;">Calculando...</div>
-          </div>
-          <div id="eta-llegada-badge" style="display:none;background:var(--green);color:#fff;font-size:.75rem;font-weight:700;padding:.3rem .7rem;border-radius:20px;">¡Llegó! 📍</div>
-        </div>
-      </div>
+
     </div>
   </div>
 
