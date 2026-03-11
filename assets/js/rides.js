@@ -121,6 +121,13 @@ async function renderViajeActivo(rides) {
               </div>
             </div>` : ''}
         </div>
+        ${activo.chofId ? `
+        <div style="margin-top:.6rem;">
+          <button class="btn-chat" onclick="abrirChatViaje()" style="width:100%;justify-content:center;">
+            <span>💬</span> Chat con el conductor
+            <span class="chat-badge" id="badge-chat-pas"></span>
+          </button>
+        </div>` : ''}
         <div style="display:flex;gap:.6rem;margin-top:.5rem;">
           ${activo.est === 'pendiente' ? `
             <button class="btn btn-danger btn-full" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
@@ -146,14 +153,20 @@ async function renderViajeActivo(rides) {
       detenerMapaPasajero();
     }
 
+    // ── Chat background listener ──
+    if (activo.chofId && typeof escucharChatBackground === 'function') {
+      escucharChatBackground(activo.id);
+    }
+
     // ── Ocultar botón solicitar viaje si hay uno activo ──
     const btnSolicitar = document.getElementById('btn-solicitar');
     if (btnSolicitar) btnSolicitar.style.display = 'none';
 
   } else {
-    // ── Limpiar mapa, tracking y estado ──
+    // ── Limpiar mapa, tracking, chat y estado ──
     detenerMapaPasajero();
     limpiarMapaViaje();
+    if (typeof detenerChat === 'function') detenerChat();
     const completado = rides.find(r => r.pasId === me.id && r.est === 'completado' && !r.calificacion);
     if (completado) mostrarModalCalificacion(completado);
     wrap.style.display = 'none'; card.innerHTML = '';
@@ -180,6 +193,7 @@ async function completarViaje(id) {
     detenerMapaPasajero();
     limpiarMapaViaje();
   }
+  if (typeof detenerChat === 'function') detenerChat();
   toast('¡Completado! ⭐', 'ok');
 }
 
