@@ -81,7 +81,8 @@ function initApp() {
       DB.onRides(rides => {
         renderSolicitudes(rides);
         actualizarIconosChoferes(rides);
-        // Verificar si hay viaje aceptado para mostrar/ocultar pestaña En curso
+        actualizarIconoPropio(rides);
+        // Verificar si hay viaje activo para mostrar/ocultar pestaña En curso
         const activo = rides.find(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
         mostrarPestanaEncurso(activo || null);
       });
