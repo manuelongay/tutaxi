@@ -25,6 +25,9 @@ function showTab(id, btn) {
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if (btn) btn.classList.add('active');
+  // Invalidar tamaño de mapas al cambiar de pestaña
+  if (id === 't-driver'  && typeof initMapaSolicitudes === 'function') setTimeout(() => initMapaSolicitudes(), 100);
+  if (id === 't-encurso' && typeof mapEncurso !== 'undefined' && mapEncurso) setTimeout(() => mapEncurso.invalidateSize(), 100);
   if (id === 't-rides')    cargarMisViajes();
   if (id === 't-driver' && driverOn) DB.rides().then(rides => renderSolicitudes(rides));
   if (id === 't-home')     setTimeout(() => map && map.invalidateSize(), 200);
@@ -95,14 +98,24 @@ function initApp() {
       iniciarTracking();
       DB.rides().then(rides => renderSolicitudes(rides));
 
+      // Mini-mapa solicitudes (maneja su propio timing con MutationObserver)
+      initMapaSolicitudes();
+
       // onRides dentro del setTimeout — driverOn ya es true aquí
+      let _ridesCache = [];
       DB.onRides(rides => {
+        _ridesCache = rides;
         renderSolicitudes(rides);
         actualizarIconosChoferes(rides);
         actualizarIconoPropio(rides);
         // Verificar si hay viaje activo para mostrar/ocultar pestaña En curso
         const activo = rides.find(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
         mostrarPestanaEncurso(activo || null);
+      });
+
+      // Actualizar otros conductores en mini-mapa
+      DB.onUsers(users => {
+        actualizarOtrosChoferesMini(users, _ridesCache);
       });
     }, 400);
 
@@ -155,6 +168,8 @@ function initApp() {
     });
     // Tracking en tiempo real de choferes en el mapa
     iniciarTrackingMapa();
+    // Tracking GPS continuo del pasajero (guarda lastLat en Firebase)
+    iniciarTrackingPasajero();
   }
 
   cargarTarifas();
