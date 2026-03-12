@@ -152,6 +152,16 @@ function initApp() {
           setTimeout(() => iniciarMapaPasajero(activo), 500);
         }
       }
+
+      // Registrar onRides AQUÍ, después de que el mapa ya está listo
+      DB.onRides(rides => {
+        renderViajeActivo(rides);
+        actualizarIconosChoferes(rides);
+      });
+      // Tracking en tiempo real de choferes en el mapa
+      iniciarTrackingMapa();
+      // Tracking GPS continuo del pasajero (guarda lastLat en Firebase)
+      iniciarTrackingPasajero();
     }, 350);
 
     DB.onNotifs(me.id, notifs => {
@@ -161,15 +171,9 @@ function initApp() {
       });
     });
 
-    // onRides solo para pasajero
-    DB.onRides(rides => {
-      renderViajeActivo(rides);
-      actualizarIconosChoferes(rides);
-    });
-    // Tracking en tiempo real de choferes en el mapa
-    iniciarTrackingMapa();
-    // Tracking GPS continuo del pasajero (guarda lastLat en Firebase)
-    iniciarTrackingPasajero();
+    // onRides y tracking se inician DENTRO del setTimeout para garantizar
+    // que initMapa() ya ejecutó y map != null antes del primer render
+    // (evita que ponerPin/renderViajeActivo fallen con map=null al recargar)
   }
 
   cargarTarifas();
