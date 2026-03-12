@@ -1,403 +1,675 @@
 /* ============================================================
-   tuTaxi — rides.js
-   Lógica de solicitud, aceptación y gestión de viajes
+   tuTaxi — map.js
+   Mapa Leaflet, geocodificación, rutas y autocomplete
    ============================================================ */
 
-// ── HELPER ESTRELLAS ─────────────────────────────
-function renderEstrellas(prom) {
-  if (!prom) return '';
-  const full  = Math.floor(prom);
-  const half  = prom - full >= 0.5 ? 1 : 0;
-  const empty = 5 - full - half;
-  return '⭐'.repeat(full) + (half ? '✨' : '') + '☆'.repeat(empty);
+let map = null, markerO = null, markerD = null, routeLine = null;
+let coordO = null, coordD = null, pinMode = null;
+let ddTimers = {}, ddRes = { origen: [], destino: [] };
+let marcadoresChoferes = {};
+let tarifasCache = { porKm: 9, minima: 30, kmIncluidos: 3, nocturna: 1.3, horaInicio: 22, horaFin: 6, espera: 1, radioKm: 3 };
+
+// Cargar tarifas desde Firebase al iniciar
+function cargarTarifas() {
+  DB.onTarifas(t => { tarifasCache = t; });
 }
 
-// ── MOTIVOS DE CANCELACIÓN ────────────────────────
-const MOTIVOS_PASAJERO = [
-  'El chofer tardó demasiado',
-  'Me equivoqué de destino',
-  'Encontré otro transporte',
-  'Cambié de planes',
-  'Otro motivo',
-];
-
-const MOTIVOS_CHOFER = [
-  'El pasajero no apareció',
-  'El pasajero canceló por otro medio',
-  'Problema con el vehículo',
-  'Emergencia personal',
-  'Otro motivo',
-];
-
-// ── PRECIO ────────────────────────────────────────
-function setPrice(v) { document.getElementById('price-show').textContent = '$' + v; }
-
-function pickPrice(v) {
-  document.getElementById('price-range').value = v;
-  setPrice(v);
-  document.querySelectorAll('.chip').forEach(c =>
-    c.classList.toggle('on', parseInt(c.textContent.replace('$', '')) === parseInt(v))
-  );
+function calcularPrecio(km, minutos) {
+  const hora    = new Date().getHours();
+  const noche   = hora >= tarifasCache.horaInicio || hora < tarifasCache.horaFin;
+  const mult    = noche ? tarifasCache.nocturna : 1;
+  const kmExtra = Math.max(0, parseFloat(km) - (tarifasCache.kmIncluidos || 0));
+  const espera  = tarifasCache.esperaActiva ? (minutos || 0) * tarifasCache.espera : 0;
+  const diurno  = Math.max(tarifasCache.minima, tarifasCache.minima + kmExtra * tarifasCache.porKm + espera);
+  const precio  = diurno * mult;
+  return Math.round(precio / 5) * 5;
 }
 
-// ── SOLICITAR VIAJE ───────────────────────────────
-async function solicitarViaje() {
-  const origen  = document.getElementById('inp-origen').value.trim();
-  const destino = document.getElementById('inp-destino').value.trim();
-  const precio  = document.getElementById('price-range').value;
-  if (!origen || !destino) { toast('Ingresa origen y destino', 'err'); return; }
+// ── INICIALIZACIÓN ────────────────────────────────
+function initMapa() {
+  if (map !== null) { map.invalidateSize(); return; }
+  map = L.map('map', { zoom: 14, zoomControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom: 19
+  }).addTo(map);
 
-  const rides = await DB.rides();
-  if (rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est))) {
-    toast('Ya tienes un viaje activo', 'err'); return;
-  }
+  // Detectar cuando el usuario mueve o hace zoom manualmente
+  map.on('zoomstart movestart', function(e) {
+    // Solo marcar si el movimiento viene del usuario (no de fitBounds/setView programático)
+    if (e.originalEvent) map._userMovedMap = true;
+  });
 
-  const ride = {
-    id: 'r_' + Date.now(),
-    pasId: me.id, pasNom: me.nom + ' ' + (me.ape || ''), pasTel: me.tel,
-    origen, destino, coordO, coordD,
-    precio: parseInt(precio),
-    est: 'pendiente',
-    fecha: new Date().toISOString(),
-    chofId: null, chofNom: null,
-  };
-
-  await DB.saveRide(ride);
-  toast('¡Viaje solicitado! Buscando chofer... 🚖', 'ok');
+  map.on('click', function (e) {
+    if (!pinMode) return;
+    geocReverso(e.latlng.lat, e.latlng.lng, nombre => {
+      if (pinMode === 'origen') {
+        coordO = { lat: e.latlng.lat, lng: e.latlng.lng };
+        document.getElementById('inp-origen').value = nombre;
+        document.getElementById('cl-origen').style.display = 'block';
+        ponerPin('origen', e.latlng.lat, e.latlng.lng);
+      } else {
+        coordD = { lat: e.latlng.lat, lng: e.latlng.lng };
+        document.getElementById('inp-destino').value = nombre;
+        document.getElementById('cl-destino').style.display = 'block';
+        ponerPin('destino', e.latlng.lat, e.latlng.lng);
+      }
+      desactivarPin();
+      if (coordO && coordD) trazarRuta();
+    });
+  });
+  miUbicacion(true);
 }
 
+// ── ICONOS ────────────────────────────────────────
+function mkIcono(emoji, color) {
+  return L.divIcon({
+    html: `<div style="background:${color};width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #000;box-shadow:0 3px 10px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:15px;">${emoji}</span></div>`,
+    className: '', iconSize: [36, 36], iconAnchor: [18, 36]
+  });
+}
 
-// ── RENDER VIAJE ACTIVO (PASAJERO) ────────────────
-async function renderViajeActivo(rides) {
-  const activo = rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est));
-  const wrap   = document.getElementById('viaje-activo-wrap');
-  const card   = document.getElementById('viaje-activo-card');
+function iconoVehiculo(conPasaje) {
+  const color  = conPasaje ? '#ef4444' : '#cccccc';
+  const sombra = conPasaje ? 'rgba(239,68,68,.5)' : 'rgba(150,150,150,.4)';
+  return L.divIcon({
+    html: `<div style="position:relative;width:36px;height:36px;filter:drop-shadow(0 2px 6px ${sombra});">
+      <svg viewBox="0 0 64 64" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="28" width="48" height="20" rx="6" fill="${color}"/>
+        <path d="M18 28 L22 14 L42 14 L46 28 Z" fill="${color}" opacity=".85"/>
+        <path d="M23 27 L26 16 L38 16 L41 27 Z" fill="#cceeff" opacity=".7"/>
+        <circle cx="18" cy="48" r="7" fill="#222"/><circle cx="18" cy="48" r="3.5" fill="#888"/>
+        <circle cx="46" cy="48" r="7" fill="#222"/><circle cx="46" cy="48" r="3.5" fill="#888"/>
+        <rect x="8" y="32" width="5" height="4" rx="1" fill="#fff9"/>
+        <rect x="51" y="32" width="5" height="4" rx="1" fill="#ff09"/>
+      </svg>
+      <div style="position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:${conPasaje ? '#ef4444' : '#22c55e'};border:2px solid #000;"></div>
+    </div>`,
+    className: '', iconSize: [36, 36], iconAnchor: [18, 36],
+  });
+}
 
-  if (activo) {
-    // ── Restaurar coordenadas si se perdieron por recarga ──
-    if (activo.coordO && !coordO) {
-      coordO = activo.coordO;
-      if (activo.origen) document.getElementById('inp-origen').value = activo.origen;
-    }
-    if (activo.coordD && !coordD) {
-      coordD = activo.coordD;
-      if (activo.destino) document.getElementById('inp-destino').value = activo.destino;
-    }
-    // Restaurar pins en el mapa si se perdieron (p.ej. tras limpiarMapaViaje)
-    if (coordO && !markerO && typeof ponerPin === 'function') {
-      ponerPin('origen', coordO.lat, coordO.lng);
-    }
-    if (coordD && !markerD && typeof ponerPin === 'function') {
-      ponerPin('destino', coordD.lat, coordD.lng);
-    }
-
-    // ── Datos del chofer ──
-    let ratingProm = null, choferUser = null;
-    if (activo.chofId) {
-      choferUser = await DB.getUser(activo.chofId);
-      if (choferUser) ratingProm = choferUser.ratingProm || null;
-    }
-
-    // ── Foto del chofer ──
-    const fotoChofer = activo.chofFoto
-      ? `<img src="${activo.chofFoto}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);flex-shrink:0;">`
-      : `<div class="avatar" style="width:48px;height:48px;font-size:1.3rem;flex-shrink:0;">${activo.chofNom ? activo.chofNom[0] : '?'}</div>`;
-
-    wrap.style.display = 'block';
-    card.innerHTML = `
-      <div class="avail-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
-          <span class="sec-label" style="margin:0;">Estado del viaje</span>
-          <span class="status-pill s-${activo.est}">${sLabel(activo.est)}</span>
-        </div>
-        <div class="from-lbl">📍 ${activo.origen}</div>
-        <div class="to-lbl" style="margin:.25rem 0 .9rem;">🎯 ${activo.destino}</div>
-        <div class="price-box" style="margin-bottom:.8rem;">
-          <div><div class="price-lbl">Tu oferta</div><div class="price-val">$${activo.precio}</div></div>
-          ${activo.chofNom ? `
-            <div style="display:flex;align-items:center;gap:.7rem;">
-              ${fotoChofer}
-              <div>
-                <div style="font-weight:700;">${activo.chofNom}</div>
-                <div style="font-size:.75rem;color:var(--gray3);">${activo.veh || ''} ${activo.pla ? '| '+activo.pla : ''}</div>
-                ${ratingProm ? `
-                  <div style="display:flex;align-items:center;gap:.3rem;margin-top:.2rem;">
-                    <span style="font-size:.9rem;">${renderEstrellas(ratingProm)}</span>
-                    <span style="font-size:.75rem;color:var(--gray3);">${ratingProm}</span>
-                  </div>` : ''}
-              </div>
-            </div>` : ''}
-        </div>
-        ${activo.chofId ? `
-        <div style="margin-top:.6rem;">
-          <button class="btn-chat" onclick="abrirChatViaje()" style="width:100%;justify-content:center;">
-            <span>💬</span> Chat con el conductor
-            <span class="chat-badge" id="badge-chat-pas"></span>
-          </button>
-        </div>` : ''}
-        <div style="display:flex;gap:.6rem;margin-top:.5rem;">
-          ${activo.est === 'pendiente' ? `
-            <button class="btn btn-danger btn-full" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
-              Cancelar solicitud
-            </button>` : ''}
-          ${activo.est === 'en_camino' ? `
-            <div style="display:flex;gap:.6rem;">
-              <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">Cancelar</button>
-              <button class="btn btn-success" style="flex:2;" onclick="iniciarViaje('${activo.id}')">🚦 Iniciar viaje</button>
-            </div>` : ''}
-          ${activo.est === 'en_curso' ? `
-            <div style="display:flex;gap:.6rem;">
-              <button class="btn btn-danger" style="flex:1;" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">Cancelar</button>
-              <button class="btn btn-success" style="flex:2;" onclick="completarViaje('${activo.id}')">✓ Completado</button>
-            </div>` : ''}
-        </div>
-      </div>`;
-
-    // ── Mapa del pasajero: durante en_camino y en_curso ──
-    if ((activo.est === 'en_camino' || activo.est === 'en_curso') && activo.chofId) {
-      iniciarMapaPasajero(activo);
-    } else {
-      detenerMapaPasajero();
-    }
-
-    // ── Chat background listener ──
-    if (activo.chofId && typeof escucharChatBackground === 'function') {
-      escucharChatBackground(activo.id);
-    }
-
-    // ── Flag global de viaje activo (evita que GPS mueva el pin de origen) ──
-    window._rideActivo = true;
-
-    // ── Ocultar botón solicitar viaje si hay uno activo ──
-    const btnSolicitar = document.getElementById('btn-solicitar');
-    if (btnSolicitar) btnSolicitar.style.display = 'none';
-
+// ── MARCADORES ────────────────────────────────────
+function ponerPin(tipo, lat, lng) {
+  if (tipo === 'origen') {
+    if (markerO) map.removeLayer(markerO);
+    markerO = L.marker([lat, lng], { icon: mkIcono('📍', '#f5c518'), draggable: true }).addTo(map);
+    markerO.on('dragend', e => {
+      const p = e.target.getLatLng(); coordO = { lat: p.lat, lng: p.lng };
+      geocReverso(p.lat, p.lng, n => { document.getElementById('inp-origen').value = n; if (coordD) trazarRuta(); });
+    });
   } else {
-    window._rideActivo = false;
-    // ── Limpiar mapa, tracking, chat y estado ──
-    detenerMapaPasajero();
-    limpiarMapaViaje();
-    if (typeof detenerChat === 'function') detenerChat();
-    const completado = rides.find(r => r.pasId === me.id && r.est === 'completado' && !r.calificacion);
-    if (completado) mostrarModalCalificacion(completado);
-    wrap.style.display = 'none'; card.innerHTML = '';
-    // Mostrar botón solicitar viaje
-    const btnSolicitar = document.getElementById('btn-solicitar');
-    if (btnSolicitar) btnSolicitar.style.display = 'block';
-  }
-}
-
-async function completarViaje(id) {
-  await DB.updateRide(id, { est: 'completado', tsCompletado: Date.now() });
-  const rides = await DB.rides();
-  const ride  = rides.find(r => r.id === id);
-  if (ride) {
-    // Notificar a la otra parte
-    const destinatario = me.rol === 'chofer' ? ride.pasId : ride.chofId;
-    if (destinatario) {
-      await DB.saveNotif({ id: 'n_' + Date.now(), pasId: destinatario,
-        msg: '✅ El viaje fue marcado como completado. ¡Gracias!',
-        leida: false, fecha: new Date().toISOString() });
-    }
-  }
-  if (me.rol === 'pasajero') {
-    detenerMapaPasajero();
-    limpiarMapaViaje();
-  }
-  if (typeof detenerChat === 'function') detenerChat();
-  toast('¡Completado! ⭐', 'ok');
-}
-
-// ── MODAL CANCELACIÓN ─────────────────────────────
-function mostrarModalCancelacion(rideId, quien) {
-  if (document.getElementById('modal-cancelacion')) return;
-  const motivos = quien === 'pasajero' ? MOTIVOS_PASAJERO : MOTIVOS_CHOFER;
-
-  const modal = document.createElement('div');
-  modal.id = 'modal-cancelacion';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;z-index:99999;padding:1rem;backdrop-filter:blur(4px);';
-  modal.innerHTML = `
-    <div style="background:var(--gray);border:1px solid rgba(255,255,255,.1);border-radius:24px 24px 0 0;padding:2rem;width:100%;max-width:440px;">
-      <div style="font-size:1.1rem;font-weight:700;margin-bottom:.3rem;">¿Por qué cancelas? 😕</div>
-      <div style="font-size:.85rem;color:var(--gray3);margin-bottom:1.5rem;">Selecciona el motivo de cancelación</div>
-      <div id="motivos-list" style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.5rem;">
-        ${motivos.map((m, i) => `
-          <div class="motivo-item" onclick="selMotivo(${i})" data-idx="${i}"
-            style="padding:.85rem 1rem;border-radius:12px;border:1.5px solid rgba(255,255,255,.08);cursor:pointer;font-size:.9rem;display:flex;align-items:center;gap:.8rem;transition:all .15s;">
-            <div class="motivo-radio" style="width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.3);flex-shrink:0;"></div>
-            ${m}
-          </div>`).join('')}
-      </div>
-      <div id="otro-motivo-wrap" style="display:none;margin-bottom:1.2rem;">
-        <textarea id="otro-motivo-txt" placeholder="Describe el motivo..."
-          style="width:100%;background:var(--gray2);border:1.5px solid rgba(255,255,255,.08);border-radius:10px;color:var(--white);padding:.75rem;font-size:.88rem;resize:none;height:80px;outline:none;box-sizing:border-box;"></textarea>
-      </div>
-      <button onclick="confirmarCancelacion('${rideId}','${quien}')" class="btn btn-danger btn-full" style="margin-bottom:.8rem;">
-        Confirmar cancelación
-      </button>
-      <button onclick="document.getElementById('modal-cancelacion').remove()"
-        style="width:100%;background:none;border:none;color:var(--gray3);cursor:pointer;font-size:.88rem;">
-        Volver
-      </button>
-    </div>`;
-  document.body.appendChild(modal);
-}
-
-let motivoSelIdx = -1;
-
-function selMotivo(idx) {
-  motivoSelIdx = idx;
-  document.querySelectorAll('.motivo-item').forEach((el, i) => {
-    const radio = el.querySelector('.motivo-radio');
-    const sel   = i === idx;
-    el.style.borderColor    = sel ? 'var(--accent)' : 'rgba(255,255,255,.08)';
-    el.style.background     = sel ? 'rgba(245,197,24,.08)' : '';
-    radio.style.borderColor = sel ? 'var(--accent)' : 'rgba(255,255,255,.3)';
-    radio.style.background  = sel ? 'var(--accent)' : '';
-  });
-  const motivos = document.querySelectorAll('.motivo-item');
-  document.getElementById('otro-motivo-wrap').style.display =
-    idx === motivos.length - 1 ? 'block' : 'none';
-}
-
-async function confirmarCancelacion(rideId, quien) {
-  if (motivoSelIdx === -1) { toast('Selecciona un motivo', 'err'); return; }
-
-  const motivos = quien === 'pasajero' ? MOTIVOS_PASAJERO : MOTIVOS_CHOFER;
-  let motivo    = motivos[motivoSelIdx];
-  const esOtro  = motivoSelIdx === motivos.length - 1;
-
-  if (esOtro) {
-    const txt = document.getElementById('otro-motivo-txt').value.trim();
-    if (!txt) { toast('Describe el motivo', 'err'); return; }
-    motivo = txt;
-  }
-
-  const rides = await DB.rides();
-  const ride  = rides.find(r => r.id === rideId);
-
-  await DB.updateRide(rideId, {
-    est:               'cancelado',
-    canceladoPor:      quien,
-    motivoCancelacion: motivo,
-    fechaCancelacion:  new Date().toISOString(),
-  });
-
-  // Notificar a la otra parte
-  if (ride) {
-    const destinatarioId = quien === 'pasajero' ? ride.chofId : ride.pasId;
-    if (destinatarioId) {
-      const quienNom = quien === 'pasajero' ? ride.pasNom : ride.chofNom;
-      await DB.saveNotif({
-        id:    'n_' + Date.now(),
-        pasId: destinatarioId,
-        msg:   `❌ ${quienNom} canceló el viaje. Motivo: "${motivo}"`,
-        leida: false,
-        fecha: new Date().toISOString(),
-      });
-    }
-  }
-
-  document.getElementById('modal-cancelacion').remove();
-  motivoSelIdx = -1;
-  if (me.rol === 'pasajero') {
-    detenerMapaPasajero();
-    limpiarMapaViaje();
-  }
-  toast('Viaje cancelado');
-}
-
-// ── RENDER SOLICITUDES (CHOFER) ───────────────────
-function renderSolicitudes(rides) {
-  if (!driverOn) return;
-  // No mostrar solicitudes si el chofer ya tiene un viaje activo
-  const tieneActivo = rides.some(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
-  if (tieneActivo) {
-    // Limpiar lista para que no quede el viaje anterior visible
-    const el = document.getElementById('solicitudes-list');
-    if (el) el.innerHTML = '<div class="empty"><div class="empty-icon">🚗</div><div class="empty-title">Tienes un viaje activo</div></div>';
-    return;
-  }
-  const pendientes = rides.filter(r => r.est === 'pendiente');
-  const el         = document.getElementById('solicitudes-list');
-
-  if (!pendientes.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Sin solicitudes</div></div>';
-    return;
-  }
-
-  el.innerHTML = pendientes.map(r => `<div class="avail-card">
-    <div class="avail-user">
-      <div class="avatar">${r.pasNom[0]}</div>
-      <div><div style="font-weight:700;">${r.pasNom}</div><div style="font-size:.78rem;color:var(--gray3);">${r.pasTel}</div></div>
-      <div style="margin-left:auto;"><div class="price-val">$${r.precio}</div></div>
-    </div>
-    <div class="from-lbl">📍 ${r.origen}</div>
-    <div class="to-lbl" style="margin-top:.25rem;">🎯 ${r.destino}</div>
-    <div class="avail-btns">
-      <button class="btn btn-danger"  onclick="rechazarViaje('${r.id}', this)">Rechazar</button>
-      <button class="btn btn-success" onclick="aceptarViaje('${r.id}')">Aceptar</button>
-    </div>
-  </div>`).join('');
-}
-
-async function cargarMisViajes() {
-  const rides = await DB.rides();
-  const mis   = rides.filter(r => r.pasId === me.id || r.chofId === me.id);
-  const el    = document.getElementById('rides-list');
-  if (!mis.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">🛣️</div><div class="empty-title">Sin viajes aún</div></div>'; return; }
-  mis.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-  el.innerHTML = mis.map(r => `<div class="ride-card">
-    <div class="ride-top">
-      <div><div class="from-lbl">📍 ${r.origen}</div><div class="to-lbl">🎯 ${r.destino}</div></div>
-      <span class="status-pill s-${r.est}">${sLabel(r.est)}</span>
-    </div>
-    <div class="ride-bot">
-      <span class="ride-price">$${r.precio}</span>
-      <span class="ride-date">${new Date(r.fecha).toLocaleDateString('es-MX')}</span>
-      ${r.canceladoPor ? `<span style="font-size:.72rem;color:var(--gray3);">Canceló: ${r.canceladoPor === 'pasajero' ? '👤 Pasajero' : '🚗 Chofer'}</span>` : ''}
-    </div>
-    ${r.motivoCancelacion ? `<div style="font-size:.75rem;color:var(--gray3);margin-top:.3rem;padding-top:.5rem;border-top:1px solid rgba(255,255,255,.05);">Motivo: ${r.motivoCancelacion}</div>` : ''}
-  </div>`).join('');
-}
-
-function rechazarViaje(id, btn) { btn.closest('.avail-card').remove(); toast('Rechazada'); }
-
-async function aceptarViaje(id) {
-  await DB.updateRide(id, {
-    est: 'en_camino', chofId: me.id, chofNom: me.nom + ' ' + (me.ape || ''),
-    chofTel: me.tel, veh: me.veh, pla: me.pla,
-    chofFoto: me.foto || null,
-    chofRating: me.ratingProm || null, chofRatingCount: me.ratingCount || 0,
-    tsAceptado: Date.now(), tsEnCamino: Date.now(),
-  });
-  const rides = await DB.rides();
-  const ride  = rides.find(r => r.id === id);
-  if (ride) {
-    await DB.saveNotif({
-      id: 'n_' + Date.now(), pasId: ride.pasId,
-      msg: `🚗 ¡${me.nom} aceptó tu viaje y está en camino! Vehículo: ${me.veh || '—'} | Placas: ${me.pla || '—'}`,
-      leida: false, fecha: new Date().toISOString()
+    if (markerD) map.removeLayer(markerD);
+    markerD = L.marker([lat, lng], { icon: mkIcono('🎯', '#ff6b35'), draggable: true }).addTo(map);
+    markerD.on('dragend', e => {
+      const p = e.target.getLatLng(); coordD = { lat: p.lat, lng: p.lng };
+      geocReverso(p.lat, p.lng, n => { document.getElementById('inp-destino').value = n; if (coordO) trazarRuta(); });
     });
   }
-  toast('¡En camino hacia el pasajero! 🚗', 'ok');
 }
 
-// ── INICIAR VIAJE ─────────────────────────────────
-async function iniciarViaje(id) {
-  await DB.updateRide(id, { est: 'en_curso', tsInicio: Date.now() });
-  // Notificar al conductor si lo inició el pasajero
-  const rides = await DB.rides();
-  const ride  = rides.find(r => r.id === id);
-  if (ride && ride.chofId) {
-    await DB.saveNotif({ id: 'n_' + Date.now(), pasId: ride.chofId,
-      msg: '🚦 El pasajero inició el viaje. ¡Buen viaje!',
-      leida: false, fecha: new Date().toISOString() });
+// ── RUTA ──────────────────────────────────────────
+function trazarRuta() {
+  if (!coordO || !coordD || !map) return;
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+
+  // Intentar OSRM primero, luego OSRM demo, finalmente línea recta
+  const osrm1 = `https://router.project-osrm.org/route/v1/driving/${coordO.lng},${coordO.lat};${coordD.lng},${coordD.lat}?overview=full&geometries=geojson`;
+  const osrm2 = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordO.lng},${coordO.lat};${coordD.lng},${coordD.lat}?overview=full&geometries=geojson`;
+
+  const intentarRuta = (url) => fetch(url, { signal: AbortSignal.timeout(6000) })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.routes?.length) throw new Error('sin ruta');
+      return data;
+    });
+
+  intentarRuta(osrm1)
+    .catch(() => intentarRuta(osrm2))
+    .then(data => {
+      if (!map) return;
+      const r   = data.routes[0];
+      const pts = r.geometry.coordinates.map(c => [c[1], c[0]]);
+      routeLine = L.polyline(pts, { color: '#f5c518', weight: 5, opacity: .9 }).addTo(map);
+      map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+      const km  = (r.distance / 1000).toFixed(1);
+      const min = Math.round(r.duration / 60);
+      const sug = calcularPrecio(km, min);
+      document.getElementById('ri-dist').textContent = km + ' km';
+      document.getElementById('ri-time').textContent = min + ' min';
+      document.getElementById('ri-sug').textContent  = '$' + sug;
+      document.getElementById('route-info').classList.add('on');
+      pickPrice(sug);
+    })
+    .catch(() => rutaLinea());
+}
+
+function rutaLinea() {
+  if (!map || !coordO || !coordD) return;
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  routeLine = L.polyline([[coordO.lat, coordO.lng], [coordD.lat, coordD.lng]], { color: '#f5c518', weight: 4, dashArray: '8 6' }).addTo(map);
+  map.fitBounds([[coordO.lat, coordO.lng], [coordD.lat, coordD.lng]], { padding: [50, 50] });
+  const d   = map.distance([coordO.lat, coordO.lng], [coordD.lat, coordD.lng]);
+  const km  = (d / 1000).toFixed(1);
+  document.getElementById('ri-dist').textContent = km + ' km';
+  document.getElementById('ri-time').textContent = Math.round(d / 300) + ' min';
+  document.getElementById('ri-sug').textContent  = '$' + calcularPrecio(km, 0);
+  document.getElementById('route-info').classList.add('on');
+}
+
+// ── GPS ───────────────────────────────────────────
+let _trackingPropio = null; // watchPosition para pasajero
+
+function miUbicacion(silencioso = false) {
+  if (!map) { if (!silencioso) toast('Mapa no listo', 'err'); return; }
+  if (!navigator.geolocation) { if (!silencioso) toast('GPS no disponible', 'err'); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude: lat, longitude: lng } = pos.coords;
+    map._userMovedMap = false; // el usuario pidió centrar → resetear flag
+    map.setView([lat, lng], 15);
+    // Guardar posición en Firebase para todos los roles
+    if (me) DB.updateUser(me.id, { lastLat: lat, lastLng: lng, lastUpdate: Date.now() });
+    if (!coordO) {
+      geocReverso(lat, lng, nombre => {
+        coordO = { lat, lng };
+        document.getElementById('inp-origen').value = nombre;
+        document.getElementById('cl-origen').style.display = 'block';
+        ponerPin('origen', lat, lng);
+        if (!silencioso) toast('Ubicación detectada 📍', 'ok');
+      });
+    } else {
+      if (!silencioso) toast('Centrado en tu ubicación', 'ok');
+    }
+  }, () => { if (!silencioso) toast('No se pudo obtener GPS', 'err'); },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+}
+
+// Tracking continuo para pasajero (actualiza lastLat cada 5s)
+function iniciarTrackingPasajero() {
+  if (!navigator.geolocation || !me || me.rol === 'chofer') return;
+  if (_trackingPropio) return; // ya activo
+  _trackingPropio = setInterval(() => {
+    navigator.geolocation.getCurrentPosition(pos => {
+      if (!me) return;
+      DB.updateUser(me.id, {
+        lastLat: pos.coords.latitude,
+        lastLng: pos.coords.longitude,
+        lastUpdate: Date.now()
+      });
+      // Actualizar pin propio solo si NO hay viaje activo
+      // (cuando hay viaje, markerO representa el origen del viaje, no la posición actual)
+      if (markerO && map && !window._rideActivo) {
+        markerO.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+      }
+    }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+  }, 5000);
+}
+
+function activarPin(tipo) {
+  pinMode = tipo;
+  document.getElementById('btn-po').className = 'map-btn' + (tipo === 'origen' ? ' m-active' : '');
+  document.getElementById('btn-pd').className = 'map-btn' + (tipo === 'destino' ? ' m-dest' : '');
+  map.getContainer().style.cursor = 'crosshair';
+  toast(tipo === 'origen' ? '📍 Toca el mapa para el origen' : '🎯 Toca el mapa para el destino');
+}
+
+function desactivarPin() {
+  pinMode = null;
+  document.getElementById('btn-po').className = 'map-btn';
+  document.getElementById('btn-pd').className = 'map-btn';
+  if (map) map.getContainer().style.cursor = '';
+}
+
+// ── GEOCODIFICACIÓN ───────────────────────────────
+function geocReverso(lat, lng, cb) {
+  fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
+    .then(r => r.json())
+    .then(d => cb(d.display_name?.split(',').slice(0, 3).join(', ') || `${lat.toFixed(5)},${lng.toFixed(5)}`))
+    .catch(() => cb(`${lat.toFixed(5)},${lng.toFixed(5)}`));
+}
+
+function geocSearch(q, cb) {
+  fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6`)
+    .then(r => r.json()).then(cb).catch(() => cb([]));
+}
+
+// ── AUTOCOMPLETE ──────────────────────────────────
+function buscar(campo, val) {
+  document.getElementById('cl-' + campo).style.display = val ? 'block' : 'none';
+  if (val.length < 3) { cerrarDD(campo); return; }
+  clearTimeout(ddTimers[campo]);
+  const dd = document.getElementById('dd-' + campo);
+  dd.style.display = 'block';
+  dd.innerHTML = '<div class="dd-info"><div class="spinner"></div> Buscando...</div>';
+  ddTimers[campo] = setTimeout(() => {
+    geocSearch(val, results => {
+      ddRes[campo] = results;
+      if (!results.length) { dd.innerHTML = '<div class="dd-info">Sin resultados</div>'; return; }
+      dd.innerHTML = results.map((r, i) => `
+        <div class="dd-item" onmousedown="elegir('${campo}',${i})">
+          <span style="font-size:.9rem;flex-shrink:0;">${icoLugar(r)}</span>
+          <div>
+            <div class="dd-main">${(r.name || r.display_name.split(',')[0]).slice(0, 50)}</div>
+            <div class="dd-sub">${r.display_name.split(',').slice(1, 4).join(', ')}</div>
+          </div>
+        </div>`).join('');
+    });
+  }, 450);
+}
+
+function icoLugar(r) {
+  if (r.type === 'restaurant' || r.type === 'fast_food') return '🍽️';
+  if (r.type === 'hospital') return '🏥';
+  if (r.type === 'school' || r.type === 'university') return '🏫';
+  if (r.class === 'highway') return '🛣️';
+  return '📌';
+}
+
+function cerrarDD(campo) { setTimeout(() => { document.getElementById('dd-' + campo).style.display = 'none'; }, 150); }
+
+function elegir(campo, idx) {
+  const r    = ddRes[campo][idx];
+  const nombre = r.display_name.split(',').slice(0, 3).join(', ');
+  const lat  = parseFloat(r.lat), lng = parseFloat(r.lon);
+  document.getElementById('inp-' + campo).value = nombre;
+  document.getElementById('cl-'  + campo).style.display = 'block';
+  document.getElementById('dd-'  + campo).style.display = 'none';
+  if (campo === 'origen') { coordO = { lat, lng }; ponerPin('origen', lat, lng); }
+  else                    { coordD = { lat, lng }; ponerPin('destino', lat, lng); }
+  if (map) map.setView([lat, lng], 15);
+  if (coordO && coordD) trazarRuta();
+}
+
+function limpiar(campo) {
+  document.getElementById('inp-' + campo).value = '';
+  document.getElementById('cl-'  + campo).style.display = 'none';
+  document.getElementById('dd-'  + campo).style.display = 'none';
+  if (campo === 'origen') { coordO = null; if (markerO) { map && map.removeLayer(markerO); markerO = null; } }
+  else                    { coordD = null; if (markerD) { map && map.removeLayer(markerD); markerD = null; } }
+  if (routeLine) { map && map.removeLayer(routeLine); routeLine = null; }
+  document.getElementById('route-info').classList.remove('on');
+}
+
+// Limpia rutas del mapa después de un viaje (pasajero)
+// Los pins origen/destino se conservan — son la ubicación del pasajero
+function limpiarMapaViaje() {
+  // Limpiar ruta trazada y marcadores de origen/destino
+  if (routeLine) { map && map.removeLayer(routeLine); routeLine = null; }
+  if (markerO)   { map && map.removeLayer(markerO);   markerO   = null; }
+  if (markerD)   { map && map.removeLayer(markerD);   markerD   = null; }
+  // Limpiar coordenadas en memoria
+  coordO = null; coordD = null;
+  // Limpiar campos de texto
+  ['origen','destino'].forEach(c => {
+    const inp = document.getElementById('inp-' + c);
+    const cl  = document.getElementById('cl-'  + c);
+    const dd  = document.getElementById('dd-'  + c);
+    if (inp) inp.value = '';
+    if (cl)  cl.style.display  = 'none';
+    if (dd)  dd.style.display  = 'none';
+  });
+  // Ocultar barra de info de ruta
+  const ri = document.getElementById('route-info');
+  if (ri) ri.classList.remove('on');
+}
+
+// ── ICONOS CHOFERES EN MAPA ───────────────────────
+async function actualizarIconosChoferes(rides) {
+  if (!map) return;
+  const users    = await DB.users();
+  const choferes = users.filter(u => u.rol === 'chofer' && u.estatus === 'activo' && u.lastLat);
+  choferes.forEach(chofer => {
+    const tieneViaje = rides.some(r => r.chofId === chofer.id && ['en_camino','en_curso'].includes(r.est));
+    const lat = chofer.lastLat, lng = chofer.lastLng;
+    if (marcadoresChoferes[chofer.id]) {
+      marcadoresChoferes[chofer.id].setLatLng([lat, lng]);
+      marcadoresChoferes[chofer.id].setIcon(iconoVehiculo(tieneViaje));
+    } else {
+      const m = L.marker([lat, lng], { icon: iconoVehiculo(tieneViaje), zIndexOffset: 100 }).addTo(map);
+      m.bindTooltip(`🚗 ${chofer.nom} ${chofer.ape || ''}<br>${chofer.veh || ''} | ${chofer.pla || ''}`, { permanent: false, direction: 'top' });
+      marcadoresChoferes[chofer.id] = m;
+    }
+  });
+}
+
+// ── TRACKING EN TIEMPO REAL DE CHOFERES ──────────
+// Escucha cambios en users para actualizar posiciones en el mapa del pasajero
+// ── DISTANCIA HAVERSINE (km entre dos coordenadas) ──
+function distanciaKm(lat1, lng1, lat2, lng2) {
+  const R  = 6371;
+  const dL = (lat2 - lat1) * Math.PI / 180;
+  const dG = (lng2 - lng1) * Math.PI / 180;
+  const a  = Math.sin(dL/2) * Math.sin(dL/2) +
+             Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+             Math.sin(dG/2) * Math.sin(dG/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function iniciarTrackingMapa() {
+  // Cache de rides en tiempo real para usarlo en el listener de users
+  let ridesCache = [];
+  DB.onRides(rides => {
+    ridesCache = rides;
+    // Cuando cambia el estado de un viaje, actualizar iconos inmediatamente
+    if (!map) return;
+    Object.keys(marcadoresChoferes).forEach(chofId => {
+      const tieneViaje = ridesCache.some(r => r.chofId === chofId && ['en_camino','en_curso'].includes(r.est));
+      marcadoresChoferes[chofId].setIcon(iconoVehiculo(tieneViaje));
+    });
+  });
+
+  DB.onUsers(async users => {
+    if (!map) return;
+    const radioKm = tarifasCache.radioKm || 3;
+    const centro  = map.getCenter();
+
+    const choferes = users.filter(u => {
+      if (u.rol !== 'chofer' || u.estatus !== 'activo' || !u.lastLat) return false;
+      return distanciaKm(centro.lat, centro.lng, u.lastLat, u.lastLng) <= radioKm;
+    });
+
+    // Eliminar marcadores fuera de radio
+    Object.keys(marcadoresChoferes).forEach(id => {
+      if (!choferes.find(c => c.id === id)) {
+        map.removeLayer(marcadoresChoferes[id]);
+        delete marcadoresChoferes[id];
+      }
+    });
+
+    choferes.forEach(chofer => {
+      const tieneViaje = ridesCache.some(r => r.chofId === chofer.id && ['en_camino','en_curso'].includes(r.est));
+      const lat  = chofer.lastLat, lng = chofer.lastLng;
+      const dist = distanciaKm(centro.lat, centro.lng, lat, lng).toFixed(1);
+
+      if (marcadoresChoferes[chofer.id]) {
+        marcadoresChoferes[chofer.id].setLatLng([lat, lng]);
+        marcadoresChoferes[chofer.id].setIcon(iconoVehiculo(tieneViaje));
+      } else {
+        const m = L.marker([lat, lng], { icon: iconoVehiculo(tieneViaje), zIndexOffset: 100 }).addTo(map);
+        m.bindTooltip(
+          `🚗 ${chofer.nom} ${chofer.ape||''}<br>${chofer.veh||''} | ${chofer.pla||''}<br>📍 ${dist} km`,
+          { permanent: false, direction: 'top' }
+        );
+        marcadoresChoferes[chofer.id] = m;
+      }
+    });
+  });
+}
+
+// ── ACTUALIZAR ICONO DEL PROPIO CONDUCTOR ─────────
+// Llamar cuando el conductor cambia de estado para que su icono se actualice
+function actualizarIconoPropio(rides) {
+  if (!me || me.rol !== 'chofer') return;
+  const tieneViaje = rides.some(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
+  if (marcadoresChoferes[me.id]) {
+    marcadoresChoferes[me.id].setIcon(iconoVehiculo(tieneViaje));
   }
-  toast('¡Viaje iniciado! 🛣️', 'ok');
 }
 
-// ── HELPER ────────────────────────────────────────
-function sLabel(s) {
-  return { pendiente: 'Pendiente', en_camino: 'En camino 🚗', en_curso: 'En curso 🛣️', completado: 'Completado', cancelado: 'Cancelado' }[s] || s;
+// ── MARCADOR DEL CONDUCTOR EN MAPA EN CURSO ───────
+let markerChoferEncurso = null;
+
+function actualizarPosicionChoferEncurso(lat, lng) {
+  if (!mapEncurso) return;
+  const iconoChofer = L.divIcon({
+    html: `<div style="position:relative;filter:drop-shadow(0 2px 8px rgba(34,197,94,.6));">
+      <svg viewBox="0 0 64 64" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="28" width="48" height="20" rx="6" fill="#22c55e"/>
+        <path d="M18 28 L22 14 L42 14 L46 28 Z" fill="#22c55e" opacity=".85"/>
+        <path d="M23 27 L26 16 L38 16 L41 27 Z" fill="#cceeff" opacity=".7"/>
+        <circle cx="18" cy="48" r="7" fill="#222"/><circle cx="18" cy="48" r="3.5" fill="#888"/>
+        <circle cx="46" cy="48" r="7" fill="#222"/><circle cx="46" cy="48" r="3.5" fill="#888"/>
+        <rect x="8" y="32" width="5" height="4" rx="1" fill="#fff9"/>
+        <rect x="51" y="32" width="5" height="4" rx="1" fill="#ff09"/>
+      </svg>
+      <div style="position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid #000;box-shadow:0 0 6px #22c55e;"></div>
+    </div>`,
+    className: '', iconSize: [40, 40], iconAnchor: [20, 40],
+  });
+
+  if (markerChoferEncurso) {
+    markerChoferEncurso.setLatLng([lat, lng]);
+  } else {
+    markerChoferEncurso = L.marker([lat, lng], { icon: iconoChofer, zIndexOffset: 200 })
+      .bindTooltip('📍 Tu posición', { permanent: false, direction: 'top' })
+      .addTo(mapEncurso);
+  }
 }
+
+// ── TRACKING CONDUCTOR ASIGNADO (usa mapa principal) ──
+let trackingRideId       = null;
+let trackingPasStop      = null;
+let markerChoferAsignado = null;
+let routeChoferAsignado  = null;  // ruta dinámica verde (tramo pendiente)
+let routeOriginalViaje   = null;  // ruta original amarilla semitransparente
+let _lastRecalcPos       = null;  // última posición donde se recalculó la ruta
+let _lastRecalcTs        = 0;     // timestamp del último recálculo
+const RECALC_MIN_DIST_KM = 0.05; // recalcular si conductor se movió >50m
+const RECALC_MIN_MS      = 20000; // o cada 20s mínimo
+
+// Icono del conductor asignado: gris=en_camino, verde=en_curso
+function iconoChoferAsignado(estado) {
+  const color  = estado === 'en_curso' ? '#22c55e' : '#9ca3af';
+  const sombra = estado === 'en_curso' ? 'rgba(34,197,94,.5)' : 'rgba(100,100,100,.4)';
+  return L.divIcon({
+    html: `<div style="position:relative;width:40px;height:40px;filter:drop-shadow(0 2px 8px ${sombra});">
+      <svg viewBox="0 0 64 64" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="28" width="48" height="20" rx="6" fill="${color}"/>
+        <path d="M18 28 L22 14 L42 14 L46 28 Z" fill="${color}" opacity=".85"/>
+        <path d="M23 27 L26 16 L38 16 L41 27 Z" fill="#cceeff" opacity=".7"/>
+        <circle cx="18" cy="48" r="7" fill="#222"/><circle cx="18" cy="48" r="3.5" fill="#888"/>
+        <circle cx="46" cy="48" r="7" fill="#222"/><circle cx="46" cy="48" r="3.5" fill="#888"/>
+        <rect x="8" y="32" width="5" height="4" rx="1" fill="#fff9"/>
+        <rect x="51" y="32" width="5" height="4" rx="1" fill="#ff09"/>
+      </svg>
+      <div style="position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;background:${color};border:2px solid #000;animation:pulse-dot 1.5s infinite;"></div>
+    </div>`,
+    className: '', iconSize: [40, 40], iconAnchor: [20, 40],
+  });
+}
+
+function iniciarTrackingChoferAsignado(ride) {
+  if (!ride || !ride.chofId || !map) return;
+
+  // No reiniciar si ya estamos trackeando el mismo viaje
+  if (trackingRideId === ride.id && trackingPasStop) return;
+
+  // Cancelar listener anterior
+  if (trackingPasStop) { trackingPasStop(); trackingPasStop = null; }
+  trackingRideId = ride.id;
+  _lastRecalcPos = null;
+  _lastRecalcTs  = 0;
+
+  // Mostrar barra ETA
+  const etaBar = document.getElementById('eta-chofer-bar');
+  if (etaBar) etaBar.style.display = 'flex';
+
+  // Trazar ruta ORIGINAL del viaje (amarilla semitransparente, referencia fija)
+  _trazarRutaOriginal(ride);
+
+  // Forzar render inmediato: obtener posición actual del conductor sin esperar GPS update
+  DB.getUser(ride.chofId).then(chofer => {
+    if (chofer && chofer.lastLat && map) {
+      _procesarPosicionConductor(chofer, ride);
+    }
+  });
+
+  trackingPasStop = DB.onUser(ride.chofId, async chofer => {
+    if (!chofer || !chofer.lastLat || !map) return;
+    if (me && chofer.id === me.id) return;
+    await _procesarPosicionConductor(chofer, ride);
+  });
+}
+
+// Procesa la posición del conductor y actualiza mapa + ETA
+// Llamado tanto por el listener en tiempo real como por el fetch inicial
+async function _procesarPosicionConductor(chofer, ride) {
+    const lat = chofer.lastLat, lng = chofer.lastLng;
+    if (!map) return;
+    const etaBar = document.getElementById('eta-chofer-bar');
+
+    // Verificar estado actual del viaje
+    const rides = await DB.rides();
+    const rideActual = rides.find(r => r.id === ride.id);
+    if (!rideActual) return;
+    const est = rideActual.est;
+
+    // Actualizar/crear marcador del conductor asignado
+    if (markerChoferAsignado) {
+      markerChoferAsignado.setLatLng([lat, lng]);
+      markerChoferAsignado.setIcon(iconoChoferAsignado(est));
+    } else {
+      markerChoferAsignado = L.marker([lat, lng], {
+        icon: iconoChoferAsignado(est), zIndexOffset: 500
+      }).bindTooltip(`🚗 ${chofer.nom} ${chofer.ape||''} · ${chofer.veh||''}`, {
+        permanent: false, direction: 'top'
+      }).addTo(map);
+    }
+
+    // Ocultar marcador genérico del chofer si existe
+    if (marcadoresChoferes[ride.chofId]) {
+      marcadoresChoferes[ride.chofId].setOpacity(0);
+      marcadoresChoferes[ride.chofId].setZIndexOffset(-100);
+    }
+
+    // Ruta dinámica: recalcular solo si conductor se movió >50m o pasaron >20s
+    const ahora      = Date.now();
+    const seMovio    = !_lastRecalcPos ||
+      distanciaKm(_lastRecalcPos.lat, _lastRecalcPos.lng, lat, lng) >= RECALC_MIN_DIST_KM;
+    const pasoTiempo = (ahora - _lastRecalcTs) >= RECALC_MIN_MS;
+
+    const destCoord = est === 'en_curso' ? ride.coordD : ride.coordO;
+
+    if (destCoord && (seMovio || pasoTiempo)) {
+      _lastRecalcPos = { lat, lng };
+      _lastRecalcTs  = ahora;
+      await _trazarRutaDinamica(lat, lng, destCoord, est);
+    }
+
+    // Ajustar vista solo si el usuario no ha interactuado manualmente con el mapa
+    if (destCoord && !map._userMovedMap) {
+      try { map.fitBounds([[lat, lng], [destCoord.lat, destCoord.lng]], { padding: [60, 60] }); }
+      catch(e) {}
+    }
+
+    // Si acaba de iniciar en_curso, redibujar ruta original origen→destino
+    if (est === 'en_curso' && !routeOriginalViaje) _trazarRutaOriginal(rideActual);
+
+    // ETA y barra de estado
+    if (!destCoord) return;
+    const distKm   = distanciaKm(lat, lng, destCoord.lat, destCoord.lng);
+    const etaMin   = Math.max(1, Math.round((distKm * 1000) / 300));
+    const etaTxt   = document.getElementById('eta-chofer-txt');
+    const etaLabel = document.getElementById('eta-chofer-label');
+    const etaIcon  = document.getElementById('eta-chofer-icon');
+    const llegoBadge = document.getElementById('eta-llegada-badge');
+
+    if (est === 'en_camino') {
+      if (etaLabel) etaLabel.textContent = 'Conductor en camino hacia ti';
+      if (etaIcon)  etaIcon.textContent  = '🚗';
+      if (distKm <= 0.1) {
+        if (etaTxt)     etaTxt.textContent = '¡El conductor llegó a tu ubicación!';
+        if (llegoBadge) llegoBadge.style.display = 'block';
+        if (!map._llegadaNotificada) {
+          map._llegadaNotificada = true;
+          toast('🎉 ¡El conductor llegó! Ya puedes abordar', 'ok');
+        }
+      } else {
+        if (etaTxt)     etaTxt.textContent = `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
+        if (llegoBadge) llegoBadge.style.display = 'none';
+        map._llegadaNotificada = false;
+      }
+    } else if (est === 'en_curso') {
+      if (etaLabel) etaLabel.textContent = 'Viaje en curso · destino';
+      if (etaIcon)  etaIcon.textContent  = '🛣️';
+      if (etaBar)   etaBar.style.borderLeft = '3px solid #22c55e';
+      if (etaTxt)   etaTxt.textContent   = `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
+      if (llegoBadge) llegoBadge.style.display = 'none';
+    }
+}
+
+// Ruta original del viaje: amarilla semitransparente, fija como referencia
+async function _trazarRutaOriginal(ride) {
+  if (!map || !ride.coordO || !ride.coordD) return;
+  if (routeOriginalViaje) { map.removeLayer(routeOriginalViaje); routeOriginalViaje = null; }
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${ride.coordO.lng},${ride.coordO.lat};${ride.coordD.lng},${ride.coordD.lat}?overview=full&geometries=geojson`;
+    const data = await (await fetch(url, { signal: AbortSignal.timeout(6000) })).json();
+    if (data.routes?.length) {
+      const pts = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      routeOriginalViaje = L.polyline(pts, {
+        color: '#f5c518', weight: 5, opacity: .3, dashArray: '6 5'
+      }).addTo(map);
+      routeOriginalViaje.bringToBack();
+    }
+  } catch(e) {}
+}
+
+// Ruta dinámica: verde desde posición actual del conductor hacia destino
+async function _trazarRutaDinamica(fromLat, fromLng, destCoord, est) {
+  if (!map) return;
+  if (routeChoferAsignado) { map.removeLayer(routeChoferAsignado); routeChoferAsignado = null; }
+  const color = est === 'en_curso' ? '#22c55e' : '#9ca3af';
+  const dash  = est === 'en_camino' ? '8 5' : null;
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${destCoord.lng},${destCoord.lat}?overview=full&geometries=geojson`;
+    const data = await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json();
+    if (data.routes?.length) {
+      const pts = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      routeChoferAsignado = L.polyline(pts, { color, weight: 5, opacity: .9, dashArray: dash }).addTo(map);
+      routeChoferAsignado.bringToFront();
+      if (routeOriginalViaje) routeOriginalViaje.bringToBack();
+    }
+  } catch(e) {}
+}
+
+function detenerTrackingChoferAsignado() {
+  if (trackingPasStop)  { trackingPasStop(); trackingPasStop = null; }
+  trackingRideId = null;
+
+  // Ocultar barra ETA
+  const etaBar = document.getElementById('eta-chofer-bar');
+  if (etaBar) etaBar.style.display = 'none';
+
+  // Eliminar marcador y rutas del conductor asignado del mapa principal
+  if (map) {
+    if (markerChoferAsignado) { map.removeLayer(markerChoferAsignado); markerChoferAsignado = null; }
+    if (routeChoferAsignado)  { map.removeLayer(routeChoferAsignado);  routeChoferAsignado  = null; }
+    if (routeOriginalViaje)   { map.removeLayer(routeOriginalViaje);   routeOriginalViaje   = null; }
+  }
+  _lastRecalcPos = null;
+  _lastRecalcTs  = 0;
+
+  // Limpiar también marcador del mapa en curso del conductor
+  if (mapEncurso && markerChoferEncurso) {
+    mapEncurso.removeLayer(markerChoferEncurso);
+    markerChoferEncurso = null;
+  }
+
+  // Restaurar visibilidad de todos los marcadores genéricos
+  if (map && marcadoresChoferes) {
+    Object.values(marcadoresChoferes).forEach(m => { m.setOpacity(1); m.setZIndexOffset(100); });
+  }
+
+  map && (map._llegadaNotificada = false);
+
+  // Restaurar pin 📍 del pasajero en su posición actual
+  if (me && me.rol !== 'chofer' && map) {
+    navigator.geolocation && navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      if (markerO) {
+        markerO.setLatLng([lat, lng]);
+      } else {
+        const icnO = L.divIcon({
+          html: `<div style="background:#f5c518;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #000;box-shadow:0 3px 10px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:15px;">📍</span></div>`,
+          className: '', iconSize: [36,36], iconAnchor: [18,36]
+        });
+        markerO = L.marker([lat, lng], { icon: icnO }).addTo(map);
+      }
+      map.setView([lat, lng], 14);
+    }, () => {}, { enableHighAccuracy: true, maximumAge: 10000, timeout: 8000 });
+  }
+}
+
+// Aliases para compatibilidad con calls en rides.js
+function iniciarMapaPasajero(ride) { iniciarTrackingChoferAsignado(ride); }
+function detenerMapaPasajero()     { detenerTrackingChoferAsignado(); }
