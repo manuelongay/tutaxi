@@ -7,12 +7,14 @@ let _chatStop        = null;   // función para detener listener activo
 let _chatBgStop      = null;   // listener background (solo badges)
 let _chatBgRideId    = null;
 let _chatAbierto     = false;
+let _chatMiUid       = null;   // uid capturado al abrir, evita race con me
 
 // ── Abrir panel de chat ──────────────────────────────────────────────────
 function abrirChat(rideId) {
   if (!rideId || !me) return;
 
   _chatRideId  = rideId;
+  _chatMiUid   = me.id;   // capturar uid ahora para usarlo en renders
   _chatAbierto = true;
 
   // Asegurar que el panel existe en el DOM
@@ -32,7 +34,7 @@ function abrirChat(rideId) {
     _renderMensajes(msgs);
     // Marcar como leídos los mensajes del otro
     msgs.forEach(m => {
-      if (m.uid !== me.id && !m.leido) {
+      if (m.uid !== _chatMiUid && !m.leido) {
         DB.markChatRead(rideId, m.id);
       }
     });
@@ -127,7 +129,7 @@ function _renderMensajes(msgs) {
   let lastDate = '';
 
   msgs.forEach(m => {
-    const esMio = m.uid === me.id;
+    const esMio = m.uid === _chatMiUid;
     const fecha = new Date(m.ts);
     const dateStr = fecha.toLocaleDateString('es-MX', { day:'numeric', month:'short' });
 
@@ -150,14 +152,15 @@ function _renderMensajes(msgs) {
       </div>`;
   });
 
-  container.innerHTML = html;
+  container.innerHTML = html + '<div style="clear:both;height:1px;"></div>';
   container.scrollTop = container.scrollHeight;
 }
 
 // ── Actualizar badge de no leídos ─────────────────────────────────────────
 function _actualizarBadge(rideId, msgs) {
   if (!me) return;
-  const noLeidos = msgs.filter(m => m.uid !== me.id && !m.leido).length;
+  const uid = _chatMiUid || (me && me.id);
+  const noLeidos = msgs.filter(m => m.uid !== uid && !m.leido).length;
   const txt = noLeidos > 0 ? (noLeidos > 9 ? '9+' : String(noLeidos)) : '';
 
   ['badge-chat-pas','badge-chat-encurso','badge-chat-chofer'].forEach(id => {
@@ -258,15 +261,12 @@ function _inyectarEstilosChat() {
       flex: 1;
       overflow-y: auto;
       padding: .8rem 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: .4rem;
     }
+    .chat-messages::after { content:''; display:table; clear:both; }
     .chat-loading, .chat-empty {
       text-align: center;
       color: rgba(255,255,255,.4);
       font-size: .85rem;
-      margin: auto;
       padding: 2rem;
     }
     .chat-date-sep {
@@ -274,6 +274,7 @@ function _inyectarEstilosChat() {
       font-size: .72rem;
       color: rgba(255,255,255,.35);
       margin: .5rem 0;
+      clear: both;
     }
     .chat-bubble {
       max-width: 78%;
@@ -281,18 +282,22 @@ function _inyectarEstilosChat() {
       border-radius: 14px;
       line-height: 1.4;
       word-break: break-word;
+      margin-bottom: .4rem;
+      clear: both;
     }
     .chat-bubble.mio {
-      align-self: flex-end;
+      float: right;
       background: #f5c518;
       color: #000;
       border-bottom-right-radius: 4px;
+      margin-left: 22%;
     }
     .chat-bubble.otro {
-      align-self: flex-start;
+      float: left;
       background: #2a2a4a;
       color: #fff;
       border-bottom-left-radius: 4px;
+      margin-right: 22%;
     }
     .chat-txt { font-size: .9rem; }
     .chat-meta {
