@@ -33,6 +33,12 @@ function initMapa() {
     attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom: 19
   }).addTo(map);
 
+  // Detectar cuando el usuario mueve o hace zoom manualmente
+  map.on('zoomstart movestart', function(e) {
+    // Solo marcar si el movimiento viene del usuario (no de fitBounds/setView programático)
+    if (e.originalEvent) map._userMovedMap = true;
+  });
+
   map.on('click', function (e) {
     if (!pinMode) return;
     geocReverso(e.latlng.lat, e.latlng.lng, nombre => {
@@ -158,6 +164,7 @@ function miUbicacion(silencioso = false) {
   if (!navigator.geolocation) { if (!silencioso) toast('GPS no disponible', 'err'); return; }
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude: lat, longitude: lng } = pos.coords;
+    map._userMovedMap = false; // el usuario pidió centrar → resetear flag
     map.setView([lat, lng], 15);
     // Guardar posición en Firebase para todos los roles
     if (me) DB.updateUser(me.id, { lastLat: lat, lastLng: lng, lastUpdate: Date.now() });
@@ -522,8 +529,8 @@ function iniciarTrackingChoferAsignado(ride) {
       await _trazarRutaDinamica(lat, lng, destCoord, est);
     }
 
-    // Ajustar vista conductor + destino
-    if (destCoord) {
+    // Ajustar vista solo si el usuario no ha interactuado manualmente con el mapa
+    if (destCoord && !map._userMovedMap) {
       try { map.fitBounds([[lat, lng], [destCoord.lat, destCoord.lng]], { padding: [60, 60] }); }
       catch(e) {}
     }
