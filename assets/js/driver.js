@@ -99,7 +99,7 @@ function actualizarMarcadorYo(lat, lng) {
       .bindTooltip('📍 Tú', { permanent: false, direction: 'top' })
       .addTo(mapSolicitudes);
   }
-  mapSolicitudes.setView([lat, lng], mapSolicitudes.getZoom());
+  if (!mapSolicitudes._userMoved) mapSolicitudes.setView([lat, lng], mapSolicitudes.getZoom());
 }
 
 function actualizarOtrosChoferesMini(users, rides) {
@@ -177,6 +177,7 @@ function initMapaEncurso(ride) {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom: 19
   }).addTo(mapEncurso);
+  mapEncurso.on('zoomstart movestart', e => { if (e.originalEvent) mapEncurso._userMoved = true; });
 
   actualizarMapaEncurso(ride);
 }
@@ -259,7 +260,7 @@ async function trazarRutaEncurso(ride) {
       if (data.routes?.length) {
         const pts = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
         routeEncurso = L.polyline(pts, { color, weight: 5, opacity: .9, dashArray: dash }).addTo(mapEncurso);
-        mapEncurso.fitBounds(routeEncurso.getBounds(), { padding: [50, 50] });
+        if (!mapEncurso._userMoved) mapEncurso.fitBounds(routeEncurso.getBounds(), { padding: [50, 50] });
         return;
       }
     } catch(e) {}
@@ -268,9 +269,9 @@ async function trazarRutaEncurso(ride) {
   // Fallback: línea recta o fitBounds de los puntos conocidos
   if (bounds.length === 2) {
     routeEncurso = L.polyline(bounds, { color, weight: 4, opacity: .7, dashArray: '8 6' }).addTo(mapEncurso);
-    mapEncurso.fitBounds(bounds, { padding: [50, 50] });
+    if (!mapEncurso._userMoved) mapEncurso.fitBounds(bounds, { padding: [50, 50] });
   } else if (bounds.length === 1) {
-    mapEncurso.setView(bounds[0], 15);
+    if (!mapEncurso._userMoved) mapEncurso.setView(bounds[0], 15);
   }
 }
 
