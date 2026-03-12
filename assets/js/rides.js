@@ -168,9 +168,6 @@ async function renderViajeActivo(rides) {
     // ── Flag global de viaje activo (evita que GPS mueva el pin de origen) ──
     window._rideActivo = true;
 
-    // ── Flag global de viaje activo (evita que GPS mueva el pin de origen) ──
-    window._rideActivo = true;
-
     // ── Ocultar botón solicitar viaje si hay uno activo ──
     const btnSolicitar = document.getElementById('btn-solicitar');
     if (btnSolicitar) btnSolicitar.style.display = 'none';
