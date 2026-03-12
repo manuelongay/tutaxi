@@ -428,10 +428,15 @@ function actualizarPosicionChoferEncurso(lat, lng) {
 }
 
 // ── TRACKING CONDUCTOR ASIGNADO (usa mapa principal) ──
-let trackingRideId  = null;
-let trackingPasStop = null;
+let trackingRideId       = null;
+let trackingPasStop      = null;
 let markerChoferAsignado = null;
-let routeChoferAsignado  = null;
+let routeChoferAsignado  = null;  // ruta dinámica verde (tramo pendiente)
+let routeOriginalViaje   = null;  // ruta original amarilla semitransparente
+let _lastRecalcPos       = null;  // última posición donde se recalculó la ruta
+let _lastRecalcTs        = 0;     // timestamp del último recálculo
+const RECALC_MIN_DIST_KM = 0.05; // recalcular si conductor se movió >50m
+const RECALC_MIN_MS      = 20000; // o cada 20s mínimo
 
 // Icono del conductor asignado: gris=en_camino, verde=en_curso
 function iconoChoferAsignado(estado) {
@@ -463,13 +468,19 @@ function iniciarTrackingChoferAsignado(ride) {
   // Cancelar listener anterior
   if (trackingPasStop) { trackingPasStop(); trackingPasStop = null; }
   trackingRideId = ride.id;
+  _lastRecalcPos = null;
+  _lastRecalcTs  = 0;
 
   // Mostrar barra ETA
   const etaBar = document.getElementById('eta-chofer-bar');
   if (etaBar) etaBar.style.display = 'flex';
 
+  // Trazar ruta ORIGINAL del viaje (amarilla semitransparente, referencia fija)
+  _trazarRutaOriginal(ride);
+
   trackingPasStop = DB.onUser(ride.chofId, async chofer => {
     if (!chofer || !chofer.lastLat || !map) return;
+    if (me && chofer.id === me.id) return;
 
     const lat = chofer.lastLat, lng = chofer.lastLng;
 
@@ -494,32 +505,34 @@ function iniciarTrackingChoferAsignado(ride) {
     // Ocultar marcador genérico del chofer si existe
     if (marcadoresChoferes[ride.chofId]) {
       marcadoresChoferes[ride.chofId].setOpacity(0);
+      marcadoresChoferes[ride.chofId].setZIndexOffset(-100);
     }
 
-    // Limpiar ruta anterior
-    if (routeChoferAsignado) { map.removeLayer(routeChoferAsignado); routeChoferAsignado = null; }
+    // Ruta dinámica: recalcular solo si conductor se movió >50m o pasaron >20s
+    const ahora      = Date.now();
+    const seMovio    = !_lastRecalcPos ||
+      distanciaKm(_lastRecalcPos.lat, _lastRecalcPos.lng, lat, lng) >= RECALC_MIN_DIST_KM;
+    const pasoTiempo = (ahora - _lastRecalcTs) >= RECALC_MIN_MS;
 
-    // Destino de la ruta según estado
     const destCoord = est === 'en_curso' ? ride.coordD : ride.coordO;
+
+    if (destCoord && (seMovio || pasoTiempo)) {
+      _lastRecalcPos = { lat, lng };
+      _lastRecalcTs  = ahora;
+      await _trazarRutaDinamica(lat, lng, destCoord, est);
+    }
+
+    // Ajustar vista conductor + destino
+    if (destCoord) {
+      try { map.fitBounds([[lat, lng], [destCoord.lat, destCoord.lng]], { padding: [60, 60] }); }
+      catch(e) {}
+    }
+
+    // Si acaba de iniciar en_curso, redibujar ruta original origen→destino
+    if (est === 'en_curso' && !routeOriginalViaje) _trazarRutaOriginal(rideActual);
+
+    // ETA y barra de estado
     if (!destCoord) return;
-
-    // Trazar ruta conductor → destino correspondiente
-    try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${lng},${lat};${destCoord.lng},${destCoord.lat}?overview=full&geometries=geojson`;
-      const data = await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json();
-      if (data.routes?.length) {
-        const pts  = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        const color = est === 'en_curso' ? '#22c55e' : '#9ca3af';
-        routeChoferAsignado = L.polyline(pts, { color, weight: 4, opacity: .8, dashArray: est === 'en_camino' ? '8 5' : null }).addTo(map);
-      }
-    } catch(e) { /* sin ruta */ }
-
-    // Ajustar vista para incluir conductor y destino
-    try {
-      map.fitBounds([[lat, lng], [destCoord.lat, destCoord.lng]], { padding: [60, 60] });
-    } catch(e) {}
-
-    // ETA y estado en la barra
     const distKm   = distanciaKm(lat, lng, destCoord.lat, destCoord.lng);
     const etaMin   = Math.max(1, Math.round((distKm * 1000) / 300));
     const etaTxt   = document.getElementById('eta-chofer-txt');
@@ -552,6 +565,41 @@ function iniciarTrackingChoferAsignado(ride) {
   });
 }
 
+// Ruta original del viaje: amarilla semitransparente, fija como referencia
+async function _trazarRutaOriginal(ride) {
+  if (!map || !ride.coordO || !ride.coordD) return;
+  if (routeOriginalViaje) { map.removeLayer(routeOriginalViaje); routeOriginalViaje = null; }
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${ride.coordO.lng},${ride.coordO.lat};${ride.coordD.lng},${ride.coordD.lat}?overview=full&geometries=geojson`;
+    const data = await (await fetch(url, { signal: AbortSignal.timeout(6000) })).json();
+    if (data.routes?.length) {
+      const pts = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      routeOriginalViaje = L.polyline(pts, {
+        color: '#f5c518', weight: 5, opacity: .3, dashArray: '6 5'
+      }).addTo(map);
+      routeOriginalViaje.bringToBack();
+    }
+  } catch(e) {}
+}
+
+// Ruta dinámica: verde desde posición actual del conductor hacia destino
+async function _trazarRutaDinamica(fromLat, fromLng, destCoord, est) {
+  if (!map) return;
+  if (routeChoferAsignado) { map.removeLayer(routeChoferAsignado); routeChoferAsignado = null; }
+  const color = est === 'en_curso' ? '#22c55e' : '#9ca3af';
+  const dash  = est === 'en_camino' ? '8 5' : null;
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${destCoord.lng},${destCoord.lat}?overview=full&geometries=geojson`;
+    const data = await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json();
+    if (data.routes?.length) {
+      const pts = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      routeChoferAsignado = L.polyline(pts, { color, weight: 5, opacity: .9, dashArray: dash }).addTo(map);
+      routeChoferAsignado.bringToFront();
+      if (routeOriginalViaje) routeOriginalViaje.bringToBack();
+    }
+  } catch(e) {}
+}
+
 function detenerTrackingChoferAsignado() {
   if (trackingPasStop)  { trackingPasStop(); trackingPasStop = null; }
   trackingRideId = null;
@@ -560,11 +608,14 @@ function detenerTrackingChoferAsignado() {
   const etaBar = document.getElementById('eta-chofer-bar');
   if (etaBar) etaBar.style.display = 'none';
 
-  // Eliminar marcador y ruta del conductor asignado del mapa principal
+  // Eliminar marcador y rutas del conductor asignado del mapa principal
   if (map) {
     if (markerChoferAsignado) { map.removeLayer(markerChoferAsignado); markerChoferAsignado = null; }
     if (routeChoferAsignado)  { map.removeLayer(routeChoferAsignado);  routeChoferAsignado  = null; }
+    if (routeOriginalViaje)   { map.removeLayer(routeOriginalViaje);   routeOriginalViaje   = null; }
   }
+  _lastRecalcPos = null;
+  _lastRecalcTs  = 0;
 
   // Limpiar también marcador del mapa en curso del conductor
   if (mapEncurso && markerChoferEncurso) {
