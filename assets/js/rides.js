@@ -83,6 +83,13 @@ async function renderViajeActivo(rides) {
       coordD = activo.coordD;
       if (activo.destino) document.getElementById('inp-destino').value = activo.destino;
     }
+    // Restaurar pins en el mapa si se perdieron (p.ej. tras limpiarMapaViaje)
+    if (coordO && !markerO && typeof ponerPin === 'function') {
+      ponerPin('origen', coordO.lat, coordO.lng);
+    }
+    if (coordD && !markerD && typeof ponerPin === 'function') {
+      ponerPin('destino', coordD.lat, coordD.lng);
+    }
 
     // ── Datos del chofer ──
     let ratingProm = null, choferUser = null;
