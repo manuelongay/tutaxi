@@ -288,16 +288,16 @@ function limpiar(campo) {
   document.getElementById('route-info').classList.remove('on');
 }
 
-// Limpia completamente el mapa después de un viaje (pasajero)
+// Limpia rutas del mapa después de un viaje (pasajero)
+// Los pins origen/destino se conservan — son la ubicación del pasajero
 function limpiarMapaViaje() {
-  // Marcadores origen y destino
-  if (markerO) { map && map.removeLayer(markerO); markerO = null; }
-  if (markerD) { map && map.removeLayer(markerD); markerD = null; }
-  // Ruta trazada
+  // Limpiar ruta trazada y marcadores de origen/destino
   if (routeLine) { map && map.removeLayer(routeLine); routeLine = null; }
-  // Coordenadas en memoria
+  if (markerO)   { map && map.removeLayer(markerO);   markerO   = null; }
+  if (markerD)   { map && map.removeLayer(markerD);   markerD   = null; }
+  // Limpiar coordenadas en memoria
   coordO = null; coordD = null;
-  // Campos de texto
+  // Limpiar campos de texto
   ['origen','destino'].forEach(c => {
     const inp = document.getElementById('inp-' + c);
     const cl  = document.getElementById('cl-'  + c);
@@ -306,7 +306,7 @@ function limpiarMapaViaje() {
     if (cl)  cl.style.display  = 'none';
     if (dd)  dd.style.display  = 'none';
   });
-  // Barra de info de ruta
+  // Ocultar barra de info de ruta
   const ri = document.getElementById('route-info');
   if (ri) ri.classList.remove('on');
 }
@@ -485,11 +485,25 @@ function iniciarTrackingChoferAsignado(ride) {
   // Trazar ruta ORIGINAL del viaje (amarilla semitransparente, referencia fija)
   _trazarRutaOriginal(ride);
 
+  // Forzar render inmediato: obtener posición actual del conductor sin esperar GPS update
+  DB.getUser(ride.chofId).then(chofer => {
+    if (chofer && chofer.lastLat && map) {
+      _procesarPosicionConductor(chofer, ride);
+    }
+  });
+
   trackingPasStop = DB.onUser(ride.chofId, async chofer => {
     if (!chofer || !chofer.lastLat || !map) return;
     if (me && chofer.id === me.id) return;
+    await _procesarPosicionConductor(chofer, ride);
+  });
+}
 
+// Procesa la posición del conductor y actualiza mapa + ETA
+// Llamado tanto por el listener en tiempo real como por el fetch inicial
+async function _procesarPosicionConductor(chofer, ride) {
     const lat = chofer.lastLat, lng = chofer.lastLng;
+    if (!map) return;
 
     // Verificar estado actual del viaje
     const rides = await DB.rides();
@@ -569,7 +583,6 @@ function iniciarTrackingChoferAsignado(ride) {
       if (etaTxt)   etaTxt.textContent   = `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
       if (llegoBadge) llegoBadge.style.display = 'none';
     }
-  });
 }
 
 // Ruta original del viaje: amarilla semitransparente, fija como referencia
