@@ -137,6 +137,12 @@ async function renderViajeActivo(rides) {
             <span class="chat-badge" id="badge-chat-pas"></span>
           </button>
         </div>` : ''}
+        ${(activo.est === 'en_camino' || activo.est === 'en_curso') ? `
+        <div style="margin-top:.5rem;">
+          <button class="btn-share" onclick="compartirViaje('${activo.id}')" style="width:100%;">
+            <span>📤</span> Compartir viaje en tiempo real
+          </button>
+        </div>` : ''}
         <div style="display:flex;gap:.6rem;margin-top:.5rem;">
           ${activo.est === 'pendiente' ? `
             <button class="btn btn-danger btn-full" onclick="mostrarModalCancelacion('${activo.id}','pasajero')">
