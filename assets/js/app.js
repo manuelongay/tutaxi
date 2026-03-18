@@ -62,69 +62,69 @@ function abrirChatViaje() {
 
 // ── COMPARTIR VIAJE EN TIEMPO REAL ──────────────────────────────────────
 function compartirViaje(rideId) {
-  const base = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
-  const url  = `${base}/../share.html?ride=${rideId}`;
+  // URL fija apuntando a la raíz del repositorio en GitHub Pages
+  const shareUrl = 'https://manuelongay.github.io/tutaxi/share.html?ride=' + rideId;
+  const waMensaje = '📍 Sigue mi viaje en tuTaxi en tiempo real: ' + shareUrl;
 
-  // Modal con opciones
   const modal = document.createElement('div');
   modal.id = 'modal-share';
-  modal.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:5000;
-    display:flex;align-items:flex-end;justify-content:center;`;
-  modal.innerHTML = `
-    <div style="background:#1a1a2e;border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:1.4rem 1.2rem 2rem;">
-      <div style="text-align:center;margin-bottom:1.2rem;">
-        <div style="font-size:1.5rem;">📤</div>
-        <div style="font-weight:700;font-size:1rem;margin-top:.4rem;">Compartir viaje</div>
-        <div style="font-size:.78rem;color:rgba(255,255,255,.45);margin-top:.2rem;">
-          Cualquiera con este link puede ver tu viaje en tiempo real
-        </div>
-      </div>
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:5000;display:flex;align-items:flex-end;justify-content:center;';
 
-      <div style="background:rgba(255,255,255,.06);border-radius:10px;padding:.7rem .9rem;
-                  font-size:.75rem;color:rgba(255,255,255,.5);word-break:break-all;margin-bottom:1rem;">
-        ${url}
-      </div>
+  const btnCopiar  = document.createElement('button');
+  btnCopiar.textContent = '📋 Copiar link';
+  btnCopiar.style.cssText = 'background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:12px;padding:.75rem;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;';
+  btnCopiar.onclick = () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareUrl)
+        .then(() => { toast('¡Link copiado! 📋','ok'); cerrarModalShare(); })
+        .catch(() => { _copiarFallback(shareUrl); cerrarModalShare(); });
+    } else {
+      _copiarFallback(shareUrl);
+      cerrarModalShare();
+    }
+  };
 
-      <div style="display:flex;flex-direction:column;gap:.6rem;">
-        <button onclick="
-          navigator.clipboard.writeText('${url}').then(() => {
-            toast('¡Link copiado al portapapeles! 📋','ok');
-            cerrarModalShare();
-          }).catch(() => {
-            toast('No se pudo copiar, copia el link manualmente','err');
-          });"
-          style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
-                 color:#fff;border-radius:12px;padding:.75rem;font-size:.9rem;
-                 cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.6rem;">
-          📋 Copiar link
-        </button>
+  const btnWa = document.createElement('button');
+  btnWa.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.124.558 4.118 1.532 5.845L0 24l6.337-1.508A11.946 11.946 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.373l-.36-.213-3.762.895.952-3.659-.234-.375A9.818 9.818 0 1112 21.818z"/></svg> Enviar por WhatsApp';
+  btnWa.style.cssText = 'background:#25D366;border:none;color:#fff;border-radius:12px;padding:.75rem;font-size:.9rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;';
+  btnWa.onclick = () => {
+    window.open('https://wa.me/?text=' + encodeURIComponent(waMensaje), '_blank');
+    cerrarModalShare();
+  };
 
-        <button onclick="
-          const msg = encodeURIComponent('📍 Sigue mi viaje en tuTaxi en tiempo real:\n${url}');
-          window.open('https://wa.me/?text=' + msg, '_blank');
-          cerrarModalShare();"
-          style="background:#25D366;border:none;color:#fff;border-radius:12px;
-                 padding:.75rem;font-size:.9rem;font-weight:600;
-                 cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.6rem;">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-            <path d="M12 0C5.373 0 0 5.373 0 12c0 2.124.558 4.118 1.532 5.845L0 24l6.337-1.508A11.946 11.946 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.373l-.36-.213-3.762.895.952-3.659-.234-.375A9.818 9.818 0 1112 21.818z"/>
-          </svg>
-          Enviar por WhatsApp
-        </button>
+  const btnCancelar = document.createElement('button');
+  btnCancelar.textContent = 'Cancelar';
+  btnCancelar.style.cssText = 'background:transparent;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.6);border-radius:12px;padding:.65rem;font-size:.88rem;cursor:pointer;width:100%;';
+  btnCancelar.onclick = cerrarModalShare;
 
-        <button onclick="cerrarModalShare()"
-          style="background:transparent;border:1px solid rgba(255,255,255,.12);
-                 color:rgba(255,255,255,.6);border-radius:12px;padding:.65rem;
-                 font-size:.88rem;cursor:pointer;">
-          Cancelar
-        </button>
-      </div>
-    </div>`;
+  const urlDiv = document.createElement('div');
+  urlDiv.style.cssText = 'background:rgba(255,255,255,.06);border-radius:10px;padding:.7rem .9rem;font-size:.75rem;color:rgba(255,255,255,.5);word-break:break-all;margin-bottom:1rem;';
+  urlDiv.textContent = shareUrl;
 
+  const inner = document.createElement('div');
+  inner.style.cssText = 'background:#1a1a2e;border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:1.4rem 1.2rem 2rem;';
+  inner.innerHTML = '<div style="text-align:center;margin-bottom:1.2rem;"><div style="font-size:1.5rem;">📤</div><div style="font-weight:700;font-size:1rem;margin-top:.4rem;">Compartir viaje</div><div style="font-size:.78rem;color:rgba(255,255,255,.45);margin-top:.2rem;">Cualquiera con este link puede ver tu viaje en tiempo real</div></div>';
+  inner.appendChild(urlDiv);
+  const btns = document.createElement('div');
+  btns.style.cssText = 'display:flex;flex-direction:column;gap:.6rem;';
+  btns.appendChild(btnCopiar);
+  btns.appendChild(btnWa);
+  btns.appendChild(btnCancelar);
+  inner.appendChild(btns);
+  modal.appendChild(inner);
   document.body.appendChild(modal);
   modal.addEventListener('click', e => { if (e.target === modal) cerrarModalShare(); });
+}
+
+function _copiarFallback(texto) {
+  const ta = document.createElement('textarea');
+  ta.value = texto;
+  ta.style.cssText = 'position:fixed;opacity:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); toast('¡Link copiado! 📋','ok'); }
+  catch(e) { toast('Copia el link manualmente','err'); }
+  document.body.removeChild(ta);
 }
 
 function cerrarModalShare() {
