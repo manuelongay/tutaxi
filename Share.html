@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>tuTaxi — Seguimiento de viaje</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f1a;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #16213e;
+      padding: .75rem 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      flex-shrink: 0;
+    }
+    .logo {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #f5c518;
+      letter-spacing: -.5px;
+    }
+    .header-sub {
+      font-size: .8rem;
+      color: rgba(255,255,255,.5);
+    }
+
+    /* ── Map ── */
+    #share-map {
+      flex: 1;
+      min-height: 55vh;
+      z-index: 1;
+    }
+
+    /* ── Info panel ── */
+    .info-panel {
+      background: #16213e;
+      padding: 1rem 1.2rem;
+      border-top: 1px solid rgba(255,255,255,.08);
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .status-pill {
+      font-size: .75rem;
+      font-weight: 700;
+      padding: .3rem .8rem;
+      border-radius: 100px;
+    }
+    .s-en_camino { background: rgba(234,179,8,.15);  color: #eab308; }
+    .s-en_curso  { background: rgba(34,197,94,.15);  color: #22c55e; }
+    .s-completado{ background: rgba(99,102,241,.15); color: #818cf8; }
+    .s-cancelado { background: rgba(239,68,68,.15);  color: #ef4444; }
+
+    .eta-bar {
+      background: rgba(245,197,24,.08);
+      border: 1px solid rgba(245,197,24,.2);
+      border-radius: 10px;
+      padding: .6rem .9rem;
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      font-size: .88rem;
+    }
+    .eta-icon { font-size: 1.2rem; }
+    .eta-info { flex: 1; }
+    .eta-label { font-size: .72rem; color: rgba(255,255,255,.5); }
+    .eta-val   { font-weight: 700; color: #f5c518; }
+
+    .chofer-row {
+      display: flex;
+      align-items: center;
+      gap: .9rem;
+    }
+    .chofer-foto {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #f5c518;
+      flex-shrink: 0;
+    }
+    .chofer-avatar {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: #2a2a4a;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      flex-shrink: 0;
+      border: 2px solid rgba(255,255,255,.1);
+    }
+    .chofer-nom  { font-weight: 700; font-size: .95rem; }
+    .chofer-veh  { font-size: .78rem; color: rgba(255,255,255,.5); margin-top: .1rem; }
+
+    .ruta-row {
+      display: flex;
+      flex-direction: column;
+      gap: .3rem;
+      font-size: .83rem;
+    }
+    .ruta-o { color: #f5c518; }
+    .ruta-d { color: #22c55e; }
+
+    /* ── Estados especiales ── */
+    .msg-finalizado {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 2rem;
+      text-align: center;
+    }
+    .msg-finalizado .icon { font-size: 3rem; }
+    .msg-finalizado h2 { font-size: 1.2rem; }
+    .msg-finalizado p  { color: rgba(255,255,255,.5); font-size: .88rem; }
+
+    #loading {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1rem;
+      color: rgba(255,255,255,.5);
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(245,197,24,.2);
+      border-top-color: #f5c518;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse-dot {
+      0%,100% { transform: scale(1); opacity: 1; }
+      50%      { transform: scale(1.4); opacity: .6; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">tuTaxi</div>
+    <div class="header-sub">Seguimiento en tiempo real</div>
+  </div>
+</div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <span>Cargando viaje...</span>
+</div>
+
+<div id="share-map" style="display:none;"></div>
+
+<div id="info-panel" class="info-panel" style="display:none;"></div>
+
+<div id="msg-fin" class="msg-finalizado" style="display:none;">
+  <div class="icon">🏁</div>
+  <h2>Viaje finalizado</h2>
+  <p>Este viaje ya ha concluido.<br>Gracias por usar tuTaxi.</p>
+</div>
+
+<!-- Firebase config -->
+<script>
+const firebaseConfig = {
+  apiKey:            "AIzaSyBT48rx-jST_-Tsm65XQ-iwZMLnzVhX_FE",
+  authDomain:        "tutaxi-f8e7e.firebaseapp.com",
+  databaseURL:       "https://tutaxi-f8e7e-default-rtdb.firebaseio.com",
+  projectId:         "tutaxi-f8e7e",
+  storageBucket:     "tutaxi-f8e7e.firebasestorage.app",
+  messagingSenderId: "710035138200",
+  appId:             "1:710035138200:web:1c4ed6292b63e5f4c752ed"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+</script>
+
+<script>
+// ── Leer rideId desde URL ──────────────────────────────────────────────
+const params = new URLSearchParams(location.search);
+const rideId = params.get('ride');
+
+let shareMap       = null;
+let markerConductor = null;
+let routeDinamica   = null;
+let routeOriginal   = null;
+
+if (!rideId) {
+  mostrarFinalizado('ID de viaje no encontrado');
+} else {
+  iniciarSeguimiento();
+}
+
+function iniciarSeguimiento() {
+  // Escuchar el ride
+  db.ref(`rides/${rideId}`).on('value', snap => {
+    if (!snap.exists()) { mostrarFinalizado(); return; }
+    const ride = snap.val();
+
+    if (['completado','cancelado'].includes(ride.est)) {
+      mostrarFinalizado();
+      return;
+    }
+
+    if (!ride.chofId) {
+      // Viaje pendiente — aún sin conductor asignado
+      mostrarEsperando();
+      return;
+    }
+
+    // Viaje activo con conductor — mostrar mapa
+    mostrarMapa(ride);
+  });
+}
+
+// ── Mostrar mapa e iniciar tracking ──────────────────────────────────
+function mostrarMapa(ride) {
+  document.getElementById('loading').style.display    = 'none';
+  document.getElementById('msg-fin').style.display    = 'none';
+  document.getElementById('share-map').style.display  = 'block';
+  document.getElementById('info-panel').style.display = 'block';
+
+  // Inicializar mapa solo una vez
+  if (!shareMap) {
+    shareMap = L.map('share-map', { zoomControl: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap', maxZoom: 19
+    }).addTo(shareMap);
+
+    // Dibujar ruta original origen→destino (amarilla)
+    if (ride.coordO && ride.coordD) {
+      _trazarRutaOriginal(ride);
+      // Pines de origen y destino
+      L.marker([ride.coordO.lat, ride.coordO.lng], {
+        icon: _mkIcon('📍', '#f5c518')
+      }).bindTooltip(ride.origen || 'Origen', { permanent: false }).addTo(shareMap);
+      L.marker([ride.coordD.lat, ride.coordD.lng], {
+        icon: _mkIcon('🎯', '#22c55e')
+      }).bindTooltip(ride.destino || 'Destino', { permanent: false }).addTo(shareMap);
+
+      shareMap.fitBounds([
+        [ride.coordO.lat, ride.coordO.lng],
+        [ride.coordD.lat, ride.coordD.lng]
+      ], { padding: [50, 50] });
+    }
+  }
+
+  // Actualizar panel de info
+  actualizarPanel(ride);
+
+  // Escuchar posición del conductor
+  db.ref(`users/${ride.chofId}`).on('value', snap => {
+    if (!snap.exists() || !shareMap) return;
+    const chofer = snap.val();
+    if (!chofer.lastLat) return;
+
+    const lat = chofer.lastLat, lng = chofer.lastLng;
+
+    // Marcador conductor
+    if (markerConductor) {
+      markerConductor.setLatLng([lat, lng]);
+    } else {
+      markerConductor = L.marker([lat, lng], {
+        icon: _iconoConductor(ride.est), zIndexOffset: 500
+      }).addTo(shareMap);
+    }
+    markerConductor.setIcon(_iconoConductor(ride.est));
+
+    // Ruta dinámica hacia destino correspondiente
+    const dest = ride.est === 'en_curso' ? ride.coordD : ride.coordO;
+    if (dest) _trazarRutaDinamica(lat, lng, dest, ride.est);
+
+    // Ajustar vista
+    if (dest) {
+      try { shareMap.fitBounds([[lat, lng], [dest.lat, dest.lng]], { padding: [60, 60] }); }
+      catch(e) {}
+    }
+
+    // Actualizar ETA en panel
+    if (dest) {
+      const distKm = _distKm(lat, lng, dest.lat, dest.lng);
+      const etaMin = Math.max(1, Math.round((distKm * 1000) / 300));
+      const etaEl  = document.getElementById('share-eta-val');
+      if (etaEl) etaEl.textContent =
+        `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
+    }
+  });
+}
+
+// ── Panel de información ──────────────────────────────────────────────
+function actualizarPanel(ride) {
+  const labels = {
+    en_camino: 'En camino hacia ti 🚗',
+    en_curso:  'Viaje en curso 🛣️'
+  };
+  const statusClass = { en_camino: 's-en_camino', en_curso: 's-en_curso' };
+
+  const foto = ride.chofFoto
+    ? `<img src="${ride.chofFoto}" class="chofer-foto" alt="Conductor">`
+    : `<div class="chofer-avatar">🧑</div>`;
+
+  document.getElementById('info-panel').innerHTML = `
+    <div class="status-row">
+      <span style="font-size:.85rem;color:rgba(255,255,255,.6);">Estado del viaje</span>
+      <span class="status-pill ${statusClass[ride.est] || ''}">${labels[ride.est] || ride.est}</span>
+    </div>
+
+    <div class="eta-bar">
+      <div class="eta-icon">${ride.est === 'en_curso' ? '🛣️' : '🚗'}</div>
+      <div class="eta-info">
+        <div class="eta-label">${ride.est === 'en_curso' ? 'Tiempo estimado al destino' : 'Tiempo estimado de llegada'}</div>
+        <div class="eta-val" id="share-eta-val">Calculando...</div>
+      </div>
+    </div>
+
+    <div class="chofer-row">
+      ${foto}
+      <div>
+        <div class="chofer-nom">${ride.chofNom || 'Conductor'}</div>
+        <div class="chofer-veh">${ride.veh || ''} ${ride.pla ? '· ' + ride.pla : ''}</div>
+      </div>
+    </div>
+
+    <div class="ruta-row">
+      <div class="ruta-o">📍 ${ride.origen || ''}</div>
+      <div class="ruta-d">🎯 ${ride.destino || ''}</div>
+    </div>`;
+}
+
+// ── Finalizado / sin conductor ────────────────────────────────────────
+function mostrarFinalizado() {
+  document.getElementById('loading').style.display    = 'none';
+  document.getElementById('share-map').style.display  = 'none';
+  document.getElementById('info-panel').style.display = 'none';
+  document.getElementById('msg-fin').style.display    = 'flex';
+}
+
+function mostrarEsperando() {
+  document.getElementById('loading').innerHTML = `
+    <div class="spinner"></div>
+    <span>Esperando conductor asignado...</span>`;
+  document.getElementById('loading').style.display = 'flex';
+}
+
+// ── Rutas OSRM ────────────────────────────────────────────────────────
+async function _trazarRutaOriginal(ride) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${ride.coordO.lng},${ride.coordO.lat};${ride.coordD.lng},${ride.coordD.lat}?overview=full&geometries=geojson`;
+    const data = await (await fetch(url, { signal: AbortSignal.timeout(6000) })).json();
+    if (data.routes?.length) {
+      const pts = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      routeOriginal = L.polyline(pts, { color: '#f5c518', weight: 4, opacity: .3, dashArray: '6 5' }).addTo(shareMap);
+      routeOriginal.bringToBack();
+    }
+  } catch(e) {}
+}
+
+let _lastRutaTs = 0;
+async function _trazarRutaDinamica(fromLat, fromLng, dest, est) {
+  const ahora = Date.now();
+  if (ahora - _lastRutaTs < 20000) return; // throttle 20s
+  _lastRutaTs = ahora;
+
+  try {
+    const color = est === 'en_curso' ? '#22c55e' : '#9ca3af';
+    const dash  = est === 'en_camino' ? '8 5' : null;
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`;
+    const data = await (await fetch(url, { signal: AbortSignal.timeout(5000) })).json();
+    if (data.routes?.length) {
+      if (routeDinamica) shareMap.removeLayer(routeDinamica);
+      const pts = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      routeDinamica = L.polyline(pts, { color, weight: 5, opacity: .9, dashArray: dash }).addTo(shareMap);
+      routeDinamica.bringToFront();
+      if (routeOriginal) routeOriginal.bringToBack();
+    }
+  } catch(e) {}
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function _distKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function _mkIcon(emoji, color) {
+  return L.divIcon({
+    html: `<div style="background:${color};width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #000;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4);"><span style="transform:rotate(45deg);font-size:14px;">${emoji}</span></div>`,
+    className: '', iconSize: [32,32], iconAnchor: [16,32]
+  });
+}
+
+function _iconoConductor(est) {
+  const color  = est === 'en_curso' ? '#22c55e' : '#9ca3af';
+  const sombra = est === 'en_curso' ? 'rgba(34,197,94,.5)' : 'rgba(100,100,100,.4)';
+  return L.divIcon({
+    html: `<div style="position:relative;width:40px;height:40px;filter:drop-shadow(0 2px 8px ${sombra});">
+      <svg viewBox="0 0 64 64" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="28" width="48" height="20" rx="6" fill="${color}"/>
+        <path d="M18 28 L22 14 L42 14 L46 28 Z" fill="${color}" opacity=".85"/>
+        <path d="M23 27 L26 16 L38 16 L41 27 Z" fill="#cceeff" opacity=".7"/>
+        <circle cx="18" cy="48" r="7" fill="#222"/><circle cx="18" cy="48" r="3.5" fill="#888"/>
+        <circle cx="46" cy="48" r="7" fill="#222"/><circle cx="46" cy="48" r="3.5" fill="#888"/>
+        <rect x="8" y="32" width="5" height="4" rx="1" fill="#fff9"/>
+        <rect x="51" y="32" width="5" height="4" rx="1" fill="#ff09"/>
+      </svg>
+      <div style="position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;background:${color};border:2px solid #000;animation:pulse-dot 1.5s infinite;"></div>
+    </div>`,
+    className: '', iconSize: [40,40], iconAnchor: [20,40]
+  });
+}
+</script>
+</body>
+</html>
