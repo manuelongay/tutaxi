@@ -208,111 +208,104 @@ const db = firebase.database();
 const params = new URLSearchParams(location.search);
 const rideId = params.get('ride');
 
-let shareMap       = null;
+let shareMap        = null;
 let markerConductor = null;
 let routeDinamica   = null;
 let routeOriginal   = null;
+let _mapaInicializado = false;
 
 if (!rideId) {
-  mostrarFinalizado('ID de viaje no encontrado');
+  mostrarFinalizado();
 } else {
   iniciarSeguimiento();
 }
 
 function iniciarSeguimiento() {
-  // Escuchar el ride
-  db.ref(`rides/${rideId}`).on('value', snap => {
-    if (!snap.exists()) { mostrarFinalizado(); return; }
-    const ride = snap.val();
+  // Lee del nodo /share/ que tiene lectura pública en Firebase Rules
+  // Estructura: { rideId, est, origen, destino, coordO, coordD,
+  //               chofNom, chofFoto, veh, pla, chofLat, chofLng, activo }
+  db.ref('share/' + rideId).on('value', snap => {
+    if (!snap.exists()) {
+      // Puede ser que el viaje terminó o el link es inválido
+      mostrarFinalizado();
+      return;
+    }
+    const s = snap.val();
 
-    if (['completado','cancelado'].includes(ride.est)) {
+    if (!s.activo) {
       mostrarFinalizado();
       return;
     }
 
-    if (!ride.chofId) {
-      // Viaje pendiente — aún sin conductor asignado
-      mostrarEsperando();
-      return;
-    }
-
-    // Viaje activo con conductor — mostrar mapa
-    mostrarMapa(ride);
+    mostrarMapa(s);
+  }, err => {
+    // Error de permisos u otro
+    console.error('share error:', err);
+    mostrarFinalizado();
   });
 }
 
 // ── Mostrar mapa e iniciar tracking ──────────────────────────────────
-function mostrarMapa(ride) {
+function mostrarMapa(s) {
   document.getElementById('loading').style.display    = 'none';
   document.getElementById('msg-fin').style.display    = 'none';
   document.getElementById('share-map').style.display  = 'block';
   document.getElementById('info-panel').style.display = 'block';
 
   // Inicializar mapa solo una vez
-  if (!shareMap) {
+  if (!_mapaInicializado) {
+    _mapaInicializado = true;
     shareMap = L.map('share-map', { zoomControl: true });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap', maxZoom: 19
     }).addTo(shareMap);
 
-    // Dibujar ruta original origen→destino (amarilla)
-    if (ride.coordO && ride.coordD) {
-      _trazarRutaOriginal(ride);
-      // Pines de origen y destino
-      L.marker([ride.coordO.lat, ride.coordO.lng], {
-        icon: _mkIcon('📍', '#f5c518')
-      }).bindTooltip(ride.origen || 'Origen', { permanent: false }).addTo(shareMap);
-      L.marker([ride.coordD.lat, ride.coordD.lng], {
-        icon: _mkIcon('🎯', '#22c55e')
-      }).bindTooltip(ride.destino || 'Destino', { permanent: false }).addTo(shareMap);
-
-      shareMap.fitBounds([
-        [ride.coordO.lat, ride.coordO.lng],
-        [ride.coordD.lat, ride.coordD.lng]
-      ], { padding: [50, 50] });
+    if (s.coordO && s.coordD) {
+      _trazarRutaOriginal(s);
+      L.marker([s.coordO.lat, s.coordO.lng], { icon: _mkIcon('📍', '#f5c518') })
+        .bindTooltip(s.origen || 'Origen').addTo(shareMap);
+      L.marker([s.coordD.lat, s.coordD.lng], { icon: _mkIcon('🎯', '#22c55e') })
+        .bindTooltip(s.destino || 'Destino').addTo(shareMap);
+      shareMap.fitBounds(
+        [[s.coordO.lat, s.coordO.lng],[s.coordD.lat, s.coordD.lng]],
+        { padding: [50, 50] }
+      );
     }
   }
 
-  // Actualizar panel de info
-  actualizarPanel(ride);
+  // Actualizar panel info
+  actualizarPanel(s);
 
-  // Escuchar posición del conductor
-  db.ref(`users/${ride.chofId}`).on('value', snap => {
-    if (!snap.exists() || !shareMap) return;
-    const chofer = snap.val();
-    if (!chofer.lastLat) return;
+  // Posición del conductor viene directo en el nodo share
+  if (s.chofLat && shareMap) {
+    const lat = s.chofLat, lng = s.chofLng;
 
-    const lat = chofer.lastLat, lng = chofer.lastLng;
-
-    // Marcador conductor
     if (markerConductor) {
       markerConductor.setLatLng([lat, lng]);
+      markerConductor.setIcon(_iconoConductor(s.est));
     } else {
       markerConductor = L.marker([lat, lng], {
-        icon: _iconoConductor(ride.est), zIndexOffset: 500
+        icon: _iconoConductor(s.est), zIndexOffset: 500
       }).addTo(shareMap);
     }
-    markerConductor.setIcon(_iconoConductor(ride.est));
 
-    // Ruta dinámica hacia destino correspondiente
-    const dest = ride.est === 'en_curso' ? ride.coordD : ride.coordO;
-    if (dest) _trazarRutaDinamica(lat, lng, dest, ride.est);
-
-    // Ajustar vista
+    const dest = s.est === 'en_curso' ? s.coordD : s.coordO;
     if (dest) {
-      try { shareMap.fitBounds([[lat, lng], [dest.lat, dest.lng]], { padding: [60, 60] }); }
-      catch(e) {}
-    }
-
-    // Actualizar ETA en panel
-    if (dest) {
+      _trazarRutaDinamica(lat, lng, dest, s.est);
+      if (!shareMap._userMoved) {
+        try { shareMap.fitBounds([[lat, lng],[dest.lat, dest.lng]], { padding: [60, 60] }); }
+        catch(e) {}
+      }
       const distKm = _distKm(lat, lng, dest.lat, dest.lng);
       const etaMin = Math.max(1, Math.round((distKm * 1000) / 300));
       const etaEl  = document.getElementById('share-eta-val');
       if (etaEl) etaEl.textContent =
-        `~${etaMin} min · ${distKm < 1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}`;
+        distKm < 1 ? Math.round(distKm*1000)+' m' : '~'+etaMin+' min · '+distKm.toFixed(1)+' km';
     }
-  });
+  }
+
+  // Respetar zoom manual del usuario
+  if (shareMap) shareMap.on('zoomstart movestart', e => { if (e.originalEvent) shareMap._userMoved = true; });
 }
 
 // ── Panel de información ──────────────────────────────────────────────
