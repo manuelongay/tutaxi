@@ -197,6 +197,7 @@ async function renderViajeActivo(rides) {
 
 async function completarViaje(id) {
   await DB.updateRide(id, { est: 'completado', tsCompletado: Date.now() });
+  DB.removeShare(id);
   const rides = await DB.rides();
   const ride  = rides.find(r => r.id === id);
   if (ride) {
@@ -284,6 +285,7 @@ async function confirmarCancelacion(rideId, quien) {
   const rides = await DB.rides();
   const ride  = rides.find(r => r.id === rideId);
 
+  DB.removeShare(rideId);
   await DB.updateRide(rideId, {
     est:               'cancelado',
     canceladoPor:      quien,
@@ -388,6 +390,23 @@ async function aceptarViaje(id) {
       leida: false, fecha: new Date().toISOString()
     });
   }
+  // Crear nodo público de seguimiento (lectura sin auth en Firebase)
+  if (ride) {
+    DB.saveShare(id, {
+      rideId: id,
+      est: 'en_camino',
+      origen:  ride.origen  || '',
+      destino: ride.destino || '',
+      coordO:  ride.coordO  || null,
+      coordD:  ride.coordD  || null,
+      chofNom:  me.nom + ' ' + (me.ape || ''),
+      chofFoto: me.foto || null,
+      veh: me.veh || '',
+      pla: me.pla || '',
+      chofId: me.id,
+      activo: true,
+    });
+  }
   toast('¡En camino hacia el pasajero! 🚗', 'ok');
 }
 
@@ -402,6 +421,7 @@ async function iniciarViaje(id) {
       msg: '🚦 El pasajero inició el viaje. ¡Buen viaje!',
       leida: false, fecha: new Date().toISOString() });
   }
+  DB.updateShare(id, { est: 'en_curso' });
   toast('¡Viaje iniciado! 🛣️', 'ok');
 }
 
