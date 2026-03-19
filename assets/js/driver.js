@@ -156,6 +156,11 @@ function iniciarTracking() {
         lastLng:    lng,
         lastUpdate: Date.now()
       });
+      // Actualizar posición en nodo público de seguimiento si hay viaje activo
+      DB.rides().then(rides => {
+        const rideActivo = rides.find(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
+        if (rideActivo) DB.updateShare(rideActivo.id, { chofLat: lat, chofLng: lng, chofTs: Date.now() });
+      });
       // Actualizar posición en mapa En curso si está activo
       actualizarPosicionChoferEncurso(lat, lng);
       // Actualizar marcador propio en mini-mapa solicitudes
