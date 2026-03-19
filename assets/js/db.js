@@ -89,6 +89,17 @@ const DB = {
   clearChat: (rideId) =>
     firebase.database().ref(`chat/${rideId}`).remove(),
 
+  // ── Nodo público para seguimiento sin auth ──
+  // /share/{rideId} tiene regla de lectura pública en Firebase
+  saveShare: (rideId, data) =>
+    firebase.database().ref(`share/${rideId}`).set(data),
+
+  updateShare: (rideId, data) =>
+    firebase.database().ref(`share/${rideId}`).update(data),
+
+  removeShare: (rideId) =>
+    firebase.database().ref(`share/${rideId}`).remove(),
+
   /* ── SESIÓN (localStorage — local por dispositivo) ────── */
 
   session:      () => JSON.parse(localStorage.getItem('tt_session') || 'null'),
