@@ -171,6 +171,10 @@ function iniciarTracking() {
 
 // ── MAPA EN CURSO ─────────────────────────────────
 function initMapaEncurso(ride) {
+  // Resetear throttle para que la primera ruta se trace siempre
+  _encursoLastRecalcPos = null;
+  _encursoLastRecalcTs  = 0;
+
   // Si el mapa ya existe solo actualizamos
   if (mapEncurso !== null) {
     mapEncurso.invalidateSize();
@@ -229,7 +233,42 @@ function actualizarMapaEncurso(ride) {
   trazarRutaEncurso(ride);
 }
 
-let routeEncurso = null; // ruta activa en el mapa En curso
+let routeEncurso        = null;  // ruta activa en el mapa En curso
+let _encursoLastRecalcPos = null; // última posición donde se recalculó la ruta del conductor
+let _encursoLastRecalcTs  = 0;    // timestamp del último recálculo
+const ENCURSO_RECALC_DIST = 0.05; // recalcular si se movió >50m
+const ENCURSO_RECALC_MS   = 20000; // o cada 20s
+
+// Llamado en cada tick de GPS — actualiza marcador y recalcula ruta si aplica
+function actualizarPosicionChoferEncurso(lat, lng) {
+  if (!mapEncurso || !markerChoferEncurso) return;
+
+  // Mover marcador del conductor
+  markerChoferEncurso.setLatLng([lat, lng]);
+
+  // Throttle: solo recalcular ruta si se movió >50m o pasaron >20s
+  const ahora      = Date.now();
+  const seMovio    = !_encursoLastRecalcPos ||
+    _distKmEncurso(_encursoLastRecalcPos.lat, _encursoLastRecalcPos.lng, lat, lng) >= ENCURSO_RECALC_DIST;
+  const pasoTiempo = (ahora - _encursoLastRecalcTs) >= ENCURSO_RECALC_MS;
+
+  if (seMovio || pasoTiempo) {
+    _encursoLastRecalcPos = { lat, lng };
+    _encursoLastRecalcTs  = ahora;
+    // Obtener ride activo para saber el destino correcto
+    DB.rides().then(rides => {
+      const rideActivo = rides.find(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
+      if (rideActivo) trazarRutaEncurso(rideActivo);
+    });
+  }
+}
+
+function _distKmEncurso(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
 async function trazarRutaEncurso(ride) {
   if (!mapEncurso || !ride) return;
