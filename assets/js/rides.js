@@ -164,8 +164,11 @@ async function renderViajeActivo(rides) {
     // ── Mapa del pasajero: durante en_camino y en_curso ──
     if ((activo.est === 'en_camino' || activo.est === 'en_curso') && activo.chofId) {
       if (typeof map !== 'undefined' && map) iniciarMapaPasajero(activo);
+      // Mostrar botón SOS con rideId y uid del conductor como destinatario
+      if (typeof mostrarSOS === 'function') mostrarSOS(activo.id, activo.chofId);
     } else {
       if (typeof map !== 'undefined' && map) detenerMapaPasajero();
+      if (typeof ocultarSOS === 'function') ocultarSOS();
     }
 
     // ── Chat background listener ──
@@ -183,6 +186,7 @@ async function renderViajeActivo(rides) {
   } else {
     window._rideActivo = false;
     // ── Limpiar mapa, tracking, chat y estado ──
+    if (typeof ocultarSOS === 'function') ocultarSOS();
     detenerMapaPasajero();
     limpiarMapaViaje();
     if (typeof detenerChat === 'function') detenerChat();
