@@ -100,6 +100,16 @@ const DB = {
   removeShare: (rideId) =>
     firebase.database().ref(`share/${rideId}`).remove(),
 
+  // ── Alertas de emergencia ──
+  saveAlerta: (alerta) =>
+    firebase.database().ref(`alertas/${alerta.id}`).set(alerta),
+
+  onAlertas: (cb) => {
+    const ref = firebase.database().ref('alertas').orderByChild('ts').limitToLast(50);
+    ref.on('value', snap => cb(snap.exists() ? Object.values(snap.val()) : []));
+    return () => ref.off('value');
+  },
+
   /* ── SESIÓN (localStorage — local por dispositivo) ────── */
 
   session:      () => JSON.parse(localStorage.getItem('tt_session') || 'null'),
