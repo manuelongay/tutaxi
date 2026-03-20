@@ -150,6 +150,8 @@ function toggleTheme() {
 function initApp() {
   go('app');
   document.getElementById('tb-name').textContent = me.nom;
+  // Inicializar botón SOS (crea el botón flotante en el DOM)
+  if (typeof initSOS === 'function') initSOS();
   const rel = document.getElementById('tb-role');
 
   if (me.rol === 'chofer') {
