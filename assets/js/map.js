@@ -195,9 +195,9 @@ function iniciarTrackingPasajero() {
         lastLng: pos.coords.longitude,
         lastUpdate: Date.now()
       });
-      // Actualizar pin propio solo si NO hay viaje activo
-      // (cuando hay viaje, markerO representa el origen del viaje, no la posición actual)
-      if (markerO && map && !window._rideActivo) {
+      // Mover markerO con GPS solo si el pasajero NO ha fijado manualmente un origen
+      // coordO !== null significa que el pasajero eligió un punto — no sobreescribir
+      if (markerO && map && !window._rideActivo && !coordO) {
         markerO.setLatLng([pos.coords.latitude, pos.coords.longitude]);
       }
     }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
