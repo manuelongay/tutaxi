@@ -322,6 +322,12 @@ async function trazarRutaEncurso(ride) {
 // ── MOSTRAR / OCULTAR PESTAÑA EN CURSO ────────────
 function mostrarPestanaEncurso(ride) {
   if (!me || me.rol !== 'chofer') return;
+  // Mostrar/ocultar SOS según haya viaje activo
+  if (ride && typeof mostrarSOS === 'function') {
+    mostrarSOS(ride.id, ride.pasId);
+  } else if (!ride && typeof ocultarSOS === 'function') {
+    ocultarSOS();
+  }
   const btn  = document.getElementById('tab-encurso-btn');
   const wrap = document.getElementById('encurso-wrap');
   const empty = document.getElementById('encurso-empty');
