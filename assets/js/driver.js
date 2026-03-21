@@ -239,12 +239,13 @@ let _encursoLastRecalcTs  = 0;    // timestamp del último recálculo
 const ENCURSO_RECALC_DIST = 0.05; // recalcular si se movió >50m
 const ENCURSO_RECALC_MS   = 20000; // o cada 20s
 
-// Llamado en cada tick de GPS — actualiza marcador y recalcula ruta si aplica
+// Llamado en cada tick de GPS — actualiza marcador (map.js) y recalcula ruta
 function actualizarPosicionChoferEncurso(lat, lng) {
-  if (!mapEncurso || !markerChoferEncurso) return;
+  if (!mapEncurso) return;
 
-  // Mover marcador del conductor
-  markerChoferEncurso.setLatLng([lat, lng]);
+  // Delegar creación/movimiento del marcador a la función de map.js
+  // (se llama directamente usando el contexto global antes de que driver.js la sobreescriba)
+  _actualizarMarcadorEncurso(lat, lng);
 
   // Throttle: solo recalcular ruta si se movió >50m o pasaron >20s
   const ahora      = Date.now();
