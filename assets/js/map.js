@@ -408,7 +408,7 @@ function actualizarIconoPropio(rides) {
 // ── MARCADOR DEL CONDUCTOR EN MAPA EN CURSO ───────
 let markerChoferEncurso = null;
 
-function actualizarPosicionChoferEncurso(lat, lng) {
+function _actualizarMarcadorEncurso(lat, lng) {
   if (!mapEncurso) return;
   const iconoChofer = L.divIcon({
     html: `<div style="position:relative;filter:drop-shadow(0 2px 8px rgba(34,197,94,.6));">
