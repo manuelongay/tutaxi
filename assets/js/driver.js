@@ -339,8 +339,30 @@ function mostrarPestanaEncurso(ride) {
   if (!ride) {
     if (wrap)  wrap.style.display  = 'none';
     if (empty) empty.style.display = 'block';
+    // Recrear mini-mapa solicitudes ahora que no hay viaje activo
+    const tabDriver = document.getElementById('t-driver');
+    const mapEl = document.getElementById('map-solicitudes');
+    if (mapEl) {
+      mapEl.style.display    = 'block';
+      mapEl.style.visibility = 'hidden';
+      requestAnimationFrame(() => setTimeout(() => {
+        initMapaSolicitudes();
+        mapEl.style.visibility = 'visible';
+      }, 200));
+    }
     return;
   }
+
+  // Hay viaje activo — destruir mini-mapa para liberar recursos
+  if (mapSolicitudes) {
+    mapSolicitudes.remove();
+    mapSolicitudes = null;
+    markerYo = null;
+    marcadoresMini = {};
+  }
+  // Ocultar contenedor del mini-mapa mientras hay viaje activo
+  const mapSolicEl = document.getElementById('map-solicitudes');
+  if (mapSolicEl) mapSolicEl.style.display = 'none';
 
   // Info del viaje
   if (info) {
