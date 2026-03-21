@@ -26,7 +26,13 @@ function showTab(id, btn) {
   document.getElementById(id).classList.add('active');
   if (btn) btn.classList.add('active');
   // Invalidar tamaño de mapas al cambiar de pestaña
-  if (id === 't-driver'  && typeof initMapaSolicitudes === 'function') requestAnimationFrame(() => setTimeout(() => initMapaSolicitudes(), 150));
+  if (id === 't-driver' && typeof initMapaSolicitudes === 'function') {
+    // Solo iniciar mini-mapa si el conductor no tiene viaje activo
+    DB.rides().then(rides => {
+      const tieneViaje = rides.some(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
+      if (!tieneViaje) requestAnimationFrame(() => setTimeout(() => initMapaSolicitudes(), 150));
+    });
+  }
   if (id === 't-encurso' && typeof mapEncurso !== 'undefined' && mapEncurso) setTimeout(() => mapEncurso.invalidateSize(), 100);
   if (id === 't-rides')    cargarMisViajes();
   if (id === 't-driver' && driverOn) DB.rides().then(rides => renderSolicitudes(rides));
@@ -172,8 +178,11 @@ function initApp() {
       iniciarTracking();
       DB.rides().then(rides => renderSolicitudes(rides));
 
-      // Mini-mapa solicitudes — llamar después del siguiente paint
-      requestAnimationFrame(() => setTimeout(() => initMapaSolicitudes(), 100));
+      // Mini-mapa solicitudes — solo si no hay viaje activo al iniciar
+      DB.rides().then(rides => {
+        const tieneViaje = rides.some(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
+        if (!tieneViaje) requestAnimationFrame(() => setTimeout(() => initMapaSolicitudes(), 100));
+      });
 
       // onRides dentro del setTimeout — driverOn ya es true aquí
       let _ridesCache = [];
