@@ -292,13 +292,19 @@ function limpiar(campo) {
 // Limpia rutas del mapa después de un viaje (pasajero)
 // Los pins origen/destino se conservan — son la ubicación del pasajero
 function limpiarMapaViaje() {
-  // Limpiar ruta trazada y marcadores de origen/destino
+  // Solo limpiar la ruta trazada y la barra de info
+  // Los marcadores y coordenadas se conservan para no perder la selección del pasajero
+  if (routeLine) { map && map.removeLayer(routeLine); routeLine = null; }
+  const ri = document.getElementById('route-info');
+  if (ri) ri.classList.remove('on');
+}
+
+// Limpieza completa al terminar/cancelar un viaje (borra pins, coords y campos)
+function limpiarMapaViajeCompleto() {
   if (routeLine) { map && map.removeLayer(routeLine); routeLine = null; }
   if (markerO)   { map && map.removeLayer(markerO);   markerO   = null; }
   if (markerD)   { map && map.removeLayer(markerD);   markerD   = null; }
-  // Limpiar coordenadas en memoria
   coordO = null; coordD = null;
-  // Limpiar campos de texto
   ['origen','destino'].forEach(c => {
     const inp = document.getElementById('inp-' + c);
     const cl  = document.getElementById('cl-'  + c);
@@ -307,7 +313,6 @@ function limpiarMapaViaje() {
     if (cl)  cl.style.display  = 'none';
     if (dd)  dd.style.display  = 'none';
   });
-  // Ocultar barra de info de ruta
   const ri = document.getElementById('route-info');
   if (ri) ri.classList.remove('on');
 }
