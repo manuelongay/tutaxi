@@ -5,6 +5,7 @@
 
 let map = null, markerO = null, markerD = null, routeLine = null;
 let coordO = null, coordD = null, pinMode = null;
+let _origenFijadoManualmente = false; // true cuando el usuario eligió origen manualmente
 let ddTimers = {}, ddRes = { origen: [], destino: [] };
 let marcadoresChoferes = {};
 let tarifasCache = { porKm: 9, minima: 30, kmIncluidos: 3, nocturna: 1.3, horaInicio: 22, horaFin: 6, espera: 1, radioKm: 3 };
@@ -41,6 +42,8 @@ function initMapa() {
 
   map.on('click', function (e) {
     if (!pinMode) return;
+    // Marcar origen como fijado manualmente ANTES de geocReverso (es async)
+    if (pinMode === 'origen') _origenFijadoManualmente = true;
     geocReverso(e.latlng.lat, e.latlng.lng, nombre => {
       if (pinMode === 'origen') {
         coordO = { lat: e.latlng.lat, lng: e.latlng.lng };
@@ -95,6 +98,7 @@ function ponerPin(tipo, lat, lng) {
     markerO = L.marker([lat, lng], { icon: mkIcono('📍', '#f5c518'), draggable: true, zIndexOffset: 1000 }).addTo(map);
     markerO.on('dragend', e => {
       const p = e.target.getLatLng(); coordO = { lat: p.lat, lng: p.lng };
+      _origenFijadoManualmente = true;
       geocReverso(p.lat, p.lng, n => { document.getElementById('inp-origen').value = n; if (coordD) trazarRuta(); });
     });
   } else {
@@ -197,7 +201,8 @@ function iniciarTrackingPasajero() {
       });
       // Mover markerO con GPS solo si el pasajero NO ha fijado manualmente un origen
       // coordO !== null significa que el pasajero eligió un punto — no sobreescribir
-      if (markerO && map && !window._rideActivo && !coordO) {
+      // No mover pin si: hay viaje activo, o el usuario fijó el origen manualmente
+      if (markerO && map && !window._rideActivo && !coordO && !_origenFijadoManualmente) {
         markerO.setLatLng([pos.coords.latitude, pos.coords.longitude]);
       }
     }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
@@ -273,7 +278,7 @@ function elegir(campo, idx) {
   document.getElementById('inp-' + campo).value = nombre;
   document.getElementById('cl-'  + campo).style.display = 'block';
   document.getElementById('dd-'  + campo).style.display = 'none';
-  if (campo === 'origen') { coordO = { lat, lng }; ponerPin('origen', lat, lng); }
+  if (campo === 'origen') { coordO = { lat, lng }; _origenFijadoManualmente = true; ponerPin('origen', lat, lng); }
   else                    { coordD = { lat, lng }; ponerPin('destino', lat, lng); }
   if (map) map.setView([lat, lng], 15);
   if (coordO && coordD) trazarRuta();
@@ -283,7 +288,7 @@ function limpiar(campo) {
   document.getElementById('inp-' + campo).value = '';
   document.getElementById('cl-'  + campo).style.display = 'none';
   document.getElementById('dd-'  + campo).style.display = 'none';
-  if (campo === 'origen') { coordO = null; if (markerO) { map && map.removeLayer(markerO); markerO = null; } }
+  if (campo === 'origen') { coordO = null; _origenFijadoManualmente = false; if (markerO) { map && map.removeLayer(markerO); markerO = null; } }
   else                    { coordD = null; if (markerD) { map && map.removeLayer(markerD); markerD = null; } }
   if (routeLine) { map && map.removeLayer(routeLine); routeLine = null; }
   document.getElementById('route-info').classList.remove('on');
@@ -304,7 +309,7 @@ function limpiarMapaViajeCompleto() {
   if (routeLine) { map && map.removeLayer(routeLine); routeLine = null; }
   if (markerO)   { map && map.removeLayer(markerO);   markerO   = null; }
   if (markerD)   { map && map.removeLayer(markerD);   markerD   = null; }
-  coordO = null; coordD = null;
+  coordO = null; coordD = null; _origenFijadoManualmente = false;
   ['origen','destino'].forEach(c => {
     const inp = document.getElementById('inp-' + c);
     const cl  = document.getElementById('cl-'  + c);
