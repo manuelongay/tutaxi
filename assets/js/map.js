@@ -92,14 +92,14 @@ function iconoVehiculo(conPasaje) {
 function ponerPin(tipo, lat, lng) {
   if (tipo === 'origen') {
     if (markerO) map.removeLayer(markerO);
-    markerO = L.marker([lat, lng], { icon: mkIcono('📍', '#f5c518'), draggable: true }).addTo(map);
+    markerO = L.marker([lat, lng], { icon: mkIcono('📍', '#f5c518'), draggable: true, zIndexOffset: 1000 }).addTo(map);
     markerO.on('dragend', e => {
       const p = e.target.getLatLng(); coordO = { lat: p.lat, lng: p.lng };
       geocReverso(p.lat, p.lng, n => { document.getElementById('inp-origen').value = n; if (coordD) trazarRuta(); });
     });
   } else {
     if (markerD) map.removeLayer(markerD);
-    markerD = L.marker([lat, lng], { icon: mkIcono('🎯', '#ff6b35'), draggable: true }).addTo(map);
+    markerD = L.marker([lat, lng], { icon: mkIcono('🎯', '#ff6b35'), draggable: true, zIndexOffset: 1000 }).addTo(map);
     markerD.on('dragend', e => {
       const p = e.target.getLatLng(); coordD = { lat: p.lat, lng: p.lng };
       geocReverso(p.lat, p.lng, n => { document.getElementById('inp-destino').value = n; if (coordO) trazarRuta(); });
@@ -599,6 +599,9 @@ async function _trazarRutaOriginal(ride) {
         color: '#f5c518', weight: 5, opacity: .3, dashArray: '6 5'
       }).addTo(map);
       routeOriginalViaje.bringToBack();
+      // Re-elevar marcadores sobre la ruta
+      if (markerO) markerO.setZIndexOffset(1000);
+      if (markerD) markerD.setZIndexOffset(1000);
     }
   } catch(e) {}
 }
@@ -617,6 +620,9 @@ async function _trazarRutaDinamica(fromLat, fromLng, destCoord, est) {
       routeChoferAsignado = L.polyline(pts, { color, weight: 5, opacity: .9, dashArray: dash }).addTo(map);
       routeChoferAsignado.bringToFront();
       if (routeOriginalViaje) routeOriginalViaje.bringToBack();
+      // Re-elevar marcadores de origen/destino sobre las rutas
+      if (markerO) markerO.setZIndexOffset(1000);
+      if (markerD) markerD.setZIndexOffset(1000);
     }
   } catch(e) {}
 }
