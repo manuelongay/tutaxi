@@ -188,6 +188,16 @@ function initMapaEncurso(ride) {
   }).addTo(mapEncurso);
   mapEncurso.on('zoomstart movestart', e => { if (e.originalEvent) mapEncurso._userMoved = true; });
 
+  // Colocar marcador del conductor antes de actualizarMapaEncurso
+  // para que eachLayer pueda preservarlo correctamente
+  if (me && me.lastLat) {
+    _actualizarMarcadorEncurso(me.lastLat, me.lastLng);
+  } else if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      _actualizarMarcadorEncurso(pos.coords.latitude, pos.coords.longitude);
+    }, () => {}, { enableHighAccuracy: true, timeout: 5000 });
+  }
+
   actualizarMapaEncurso(ride);
 }
 
