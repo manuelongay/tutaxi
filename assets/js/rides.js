@@ -188,7 +188,7 @@ async function renderViajeActivo(rides) {
     // ── Limpiar mapa, tracking, chat y estado ──
     if (typeof ocultarSOS === 'function') ocultarSOS();
     detenerMapaPasajero();
-    limpiarMapaViaje();
+    limpiarMapaViaje(); // solo limpia routeLine, conserva pins del pasajero
     if (typeof detenerChat === 'function') detenerChat();
     const completado = rides.find(r => r.pasId === me.id && r.est === 'completado' && !r.calificacion);
     if (completado) mostrarModalCalificacion(completado);
@@ -215,7 +215,7 @@ async function completarViaje(id) {
   }
   if (me.rol === 'pasajero') {
     detenerMapaPasajero();
-    limpiarMapaViaje();
+    limpiarMapaViajeCompleto(); // limpieza total al completar
   }
   if (typeof detenerChat === 'function') detenerChat();
   toast('¡Completado! ⭐', 'ok');
@@ -316,7 +316,7 @@ async function confirmarCancelacion(rideId, quien) {
   motivoSelIdx = -1;
   if (me.rol === 'pasajero') {
     detenerMapaPasajero();
-    limpiarMapaViaje();
+    limpiarMapaViajeCompleto(); // limpieza total al completar
   }
   toast('Viaje cancelado');
 }
