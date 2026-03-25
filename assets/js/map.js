@@ -667,8 +667,9 @@ function detenerTrackingChoferAsignado() {
 
   map && (map._llegadaNotificada = false);
 
-  // Restaurar pin 📍 del pasajero en su posición actual
-  if (me && me.rol !== 'chofer' && map) {
+  // Restaurar pin 📍 del pasajero en su posición GPS actual
+  // SOLO si el pasajero no fijó un origen manualmente
+  if (me && me.rol !== 'chofer' && map && !_origenFijadoManualmente) {
     navigator.geolocation && navigator.geolocation.getCurrentPosition(pos => {
       const { latitude: lat, longitude: lng } = pos.coords;
       if (markerO) {
