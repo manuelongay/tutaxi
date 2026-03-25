@@ -213,6 +213,31 @@ function initApp() {
       // Restaurar ruta si hay viaje activo al recargar
       const rides = await DB.rides();
       const activo = rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est));
+
+      // Restaurar selección de origen/destino desde sessionStorage (sin viaje activo)
+      if (!activo) {
+        try {
+          const sO = sessionStorage.getItem('tt_coordO');
+          const sD = sessionStorage.getItem('tt_coordD');
+          const tO = sessionStorage.getItem('tt_origen_txt');
+          const tD = sessionStorage.getItem('tt_destino_txt');
+          if (sO) {
+            coordO = JSON.parse(sO);
+            _origenFijadoManualmente = true;
+            if (tO) document.getElementById('inp-origen').value = tO;
+            setTimeout(() => { if (coordO) ponerPin('origen', coordO.lat, coordO.lng); }, 450);
+          }
+          if (sD) {
+            coordD = JSON.parse(sD);
+            if (tD) document.getElementById('inp-destino').value = tD;
+            setTimeout(() => {
+              if (coordD) ponerPin('destino', coordD.lat, coordD.lng);
+              if (coordO && coordD) trazarRuta();
+            }, 500);
+          }
+        } catch(e) {}
+      }
+
       if (activo) {
         // Ocultar botón solicitar si hay viaje activo
         const btnSolicitar = document.getElementById('btn-solicitar');
