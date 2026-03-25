@@ -88,6 +88,7 @@ async function renderViajeActivo(rides) {
     }
     // Restaurar pins en el mapa si se perdieron (solo si el mapa ya está listo)
     if (coordO && !markerO && typeof ponerPin === 'function' && typeof map !== 'undefined' && map) {
+      if (typeof _origenFijadoManualmente !== 'undefined') _origenFijadoManualmente = true;
       ponerPin('origen', coordO.lat, coordO.lng);
     }
     if (coordD && !markerD && typeof ponerPin === 'function' && typeof map !== 'undefined' && map) {
@@ -190,6 +191,14 @@ async function renderViajeActivo(rides) {
     detenerMapaPasajero();
     limpiarMapaViaje(); // solo limpia routeLine, conserva pins del pasajero
     if (typeof detenerChat === 'function') detenerChat();
+    // Notificar al pasajero si el conductor canceló
+    const cancelado = rides.find(r => r.pasId === me.id && r.est === 'cancelado' && r.canceladoPor === 'chofer');
+    if (cancelado && !window._canceladoNotificado) {
+      window._canceladoNotificado = cancelado.id;
+      toast('❌ El conductor canceló el viaje', 'err');
+    } else if (!cancelado) {
+      window._canceladoNotificado = null;
+    }
     const completado = rides.find(r => r.pasId === me.id && r.est === 'completado' && !r.calificacion);
     if (completado) mostrarModalCalificacion(completado);
     wrap.style.display = 'none'; card.innerHTML = '';
