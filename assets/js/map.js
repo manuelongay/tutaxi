@@ -49,11 +49,13 @@ function initMapa() {
         coordO = { lat: e.latlng.lat, lng: e.latlng.lng };
         document.getElementById('inp-origen').value = nombre;
         document.getElementById('cl-origen').style.display = 'block';
+        try { sessionStorage.setItem('tt_origen_txt', nombre); } catch(e) {}
         ponerPin('origen', e.latlng.lat, e.latlng.lng);
       } else {
         coordD = { lat: e.latlng.lat, lng: e.latlng.lng };
         document.getElementById('inp-destino').value = nombre;
         document.getElementById('cl-destino').style.display = 'block';
+        try { sessionStorage.setItem('tt_destino_txt', nombre); } catch(e) {}
         ponerPin('destino', e.latlng.lat, e.latlng.lng);
       }
       desactivarPin();
@@ -96,6 +98,7 @@ function ponerPin(tipo, lat, lng) {
   if (tipo === 'origen') {
     if (markerO) map.removeLayer(markerO);
     markerO = L.marker([lat, lng], { icon: mkIcono('📍', '#f5c518'), draggable: true, zIndexOffset: 1000 }).addTo(map);
+    try { sessionStorage.setItem('tt_coordO', JSON.stringify({lat, lng})); } catch(e) {}
     markerO.on('dragend', e => {
       const p = e.target.getLatLng(); coordO = { lat: p.lat, lng: p.lng };
       _origenFijadoManualmente = true;
@@ -104,6 +107,7 @@ function ponerPin(tipo, lat, lng) {
   } else {
     if (markerD) map.removeLayer(markerD);
     markerD = L.marker([lat, lng], { icon: mkIcono('🎯', '#ff6b35'), draggable: true, zIndexOffset: 1000 }).addTo(map);
+    try { sessionStorage.setItem('tt_coordD', JSON.stringify({lat, lng})); } catch(e) {}
     markerD.on('dragend', e => {
       const p = e.target.getLatLng(); coordD = { lat: p.lat, lng: p.lng };
       geocReverso(p.lat, p.lng, n => { document.getElementById('inp-destino').value = n; if (coordO) trazarRuta(); });
@@ -278,8 +282,16 @@ function elegir(campo, idx) {
   document.getElementById('inp-' + campo).value = nombre;
   document.getElementById('cl-'  + campo).style.display = 'block';
   document.getElementById('dd-'  + campo).style.display = 'none';
-  if (campo === 'origen') { coordO = { lat, lng }; _origenFijadoManualmente = true; ponerPin('origen', lat, lng); }
-  else                    { coordD = { lat, lng }; ponerPin('destino', lat, lng); }
+  if (campo === 'origen') {
+    coordO = { lat, lng }; _origenFijadoManualmente = true;
+    try { sessionStorage.setItem('tt_coordO', JSON.stringify({lat,lng})); sessionStorage.setItem('tt_origen_txt', document.getElementById('inp-origen').value); } catch(e) {}
+    ponerPin('origen', lat, lng);
+  }
+  else {
+    coordD = { lat, lng };
+    try { sessionStorage.setItem('tt_coordD', JSON.stringify({lat,lng})); sessionStorage.setItem('tt_destino_txt', document.getElementById('inp-destino').value); } catch(e) {}
+    ponerPin('destino', lat, lng);
+  }
   if (map) map.setView([lat, lng], 15);
   if (coordO && coordD) trazarRuta();
 }
@@ -288,8 +300,8 @@ function limpiar(campo) {
   document.getElementById('inp-' + campo).value = '';
   document.getElementById('cl-'  + campo).style.display = 'none';
   document.getElementById('dd-'  + campo).style.display = 'none';
-  if (campo === 'origen') { coordO = null; _origenFijadoManualmente = false; if (markerO) { map && map.removeLayer(markerO); markerO = null; } }
-  else                    { coordD = null; if (markerD) { map && map.removeLayer(markerD); markerD = null; } }
+  if (campo === 'origen') { coordO = null; _origenFijadoManualmente = false; try { sessionStorage.removeItem('tt_coordO'); sessionStorage.removeItem('tt_origen_txt'); } catch(e) {} if (markerO) { map && map.removeLayer(markerO); markerO = null; } }
+  else { coordD = null; try { sessionStorage.removeItem('tt_coordD'); sessionStorage.removeItem('tt_destino_txt'); } catch(e) {} if (markerD) { map && map.removeLayer(markerD); markerD = null; } }
   if (routeLine) { map && map.removeLayer(routeLine); routeLine = null; }
   document.getElementById('route-info').classList.remove('on');
 }
@@ -310,6 +322,7 @@ function limpiarMapaViajeCompleto() {
   if (markerO)   { map && map.removeLayer(markerO);   markerO   = null; }
   if (markerD)   { map && map.removeLayer(markerD);   markerD   = null; }
   coordO = null; coordD = null; _origenFijadoManualmente = false;
+  try { sessionStorage.removeItem('tt_coordO'); sessionStorage.removeItem('tt_coordD'); } catch(e) {}
   ['origen','destino'].forEach(c => {
     const inp = document.getElementById('inp-' + c);
     const cl  = document.getElementById('cl-'  + c);
