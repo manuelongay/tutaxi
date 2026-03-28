@@ -203,10 +203,15 @@ function iniciarTrackingPasajero() {
         lastLng: pos.coords.longitude,
         lastUpdate: Date.now()
       });
-      // Mover markerO con GPS solo si el pasajero NO ha fijado manualmente un origen
-      // coordO !== null significa que el pasajero eligió un punto — no sobreescribir
-      // No mover pin si: hay viaje activo, o el usuario fijó el origen manualmente
-      if (markerO && map && !window._rideActivo && !coordO && !_origenFijadoManualmente) {
+      // markerO solo se mueve por GPS si:
+      // 1. No hay viaje activo (pasajero no está en un ride)
+      // 2. El pasajero no fijó el origen manualmente
+      // 3. coordO es null (no hay origen seleccionado)
+      const puedeActualizarPin = markerO && map
+        && !window._rideActivo
+        && !_origenFijadoManualmente
+        && !coordO;
+      if (puedeActualizarPin) {
         markerO.setLatLng([pos.coords.latitude, pos.coords.longitude]);
       }
     }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
@@ -680,9 +685,10 @@ function detenerTrackingChoferAsignado() {
 
   map && (map._llegadaNotificada = false);
 
-  // Restaurar pin 📍 del pasajero en su posición GPS actual
-  // SOLO si el pasajero no fijó un origen manualmente
-  if (me && me.rol !== 'chofer' && map && !_origenFijadoManualmente) {
+  // Restaurar pin 📍 del pasajero en su posición GPS SOLO si:
+  // - No hay viaje activo (no en_camino/en_curso)
+  // - El pasajero no fijó origen manualmente
+  if (me && me.rol !== 'chofer' && map && !_origenFijadoManualmente && !window._rideActivo) {
     navigator.geolocation && navigator.geolocation.getCurrentPosition(pos => {
       const { latitude: lat, longitude: lng } = pos.coords;
       if (markerO) {
