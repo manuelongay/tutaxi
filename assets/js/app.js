@@ -208,6 +208,16 @@ function initApp() {
     document.getElementById('tab-chofer-btn').style.display    = 'none';
     document.getElementById('tab-ganancias-btn').style.display = 'none';
     document.getElementById('tab-inicio-btn').style.display    = 'block';
+
+    // Verificar inmediatamente si hay viaje activo para bloquear GPS antes del primer tick
+    DB.rides().then(rides => {
+      const tieneActivo = rides.some(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est));
+      if (tieneActivo) {
+        window._rideActivo = true;
+        if (typeof _origenFijadoManualmente !== 'undefined') _origenFijadoManualmente = true;
+      }
+    });
+
     setTimeout(async () => {
       initMapa();
       // Restaurar ruta si hay viaje activo al recargar
