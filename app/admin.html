@@ -78,6 +78,11 @@
     </div>
 
     <div class="nav-section-title">Configuración</div>
+    <div class="nav-item" onclick="showView('documentos');cargarDocumentos()">
+      <span>📄</span>
+      <span>Documentos</span>
+      <span class="nav-badge" id="badge-docs">0</span>
+    </div>
     <div class="nav-item" onclick="showView('tarifas');cargarTarifas()">
       <div class="nav-icon">💲</div> Tarifas
     </div>
@@ -288,6 +293,27 @@
     </div>
 
   <!-- TARIFAS -->
+  <div id="view-documentos" class="view">
+      <div class="section-header">
+        <h2>Verificación de documentos</h2>
+        <p>Revisa y aprueba los documentos de los conductores</p>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header">
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <div class="table-title">Documentos</div>
+            <div class="filter-tabs">
+              <button class="filter-tab active" onclick="filtrarDocs('subido',this)">Pendientes</button>
+              <button class="filter-tab" onclick="filtrarDocs('todos',this)">Todos</button>
+              <button class="filter-tab" onclick="filtrarDocs('aprobado',this)">Aprobados</button>
+              <button class="filter-tab" onclick="filtrarDocs('rechazado',this)">Rechazados</button>
+            </div>
+          </div>
+        </div>
+        <div id="docs-admin-table"></div>
+      </div>
+    </div>
+
   <div id="view-tarifas" class="view">
     <div class="section-header">
       <h2>Tarifas</h2>
