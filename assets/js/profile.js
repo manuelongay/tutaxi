@@ -25,7 +25,10 @@ function refrescarPerfil() {
     <div class="irow"><span class="ik">Desde</span><span class="iv">${new Date(me.fecha).toLocaleDateString('es-MX')}</span></div>`;
 
   if (me.rol === 'chofer') {
-    document.getElementById('veh-card').style.display = 'block';
+    document.getElementById('veh-card').style.display  = 'block';
+    document.getElementById('docs-card').style.display = 'block';
+    // Inicializar módulo de documentos
+    if (typeof initDocs === 'function') initDocs();
     document.getElementById('veh-rows').innerHTML = `
       <div class="irow"><span class="ik">Vehículo</span><span class="iv">${me.veh || '—'}</span></div>
       <div class="irow"><span class="ik">Placas</span><span class="iv">${me.pla || '—'}</span></div>
