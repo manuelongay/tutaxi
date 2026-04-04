@@ -155,4 +155,33 @@ const DB = {
     const snap = await firebase.database().ref('rides').get();
     return snap.exists() ? Object.values(snap.val()) : [];
   },
+
+  // ── Documentos del conductor ──────────────────────────
+  saveDocs: (uid, docs) =>
+    firebase.database().ref(`documentos/${uid}`).set(docs),
+
+  getDocs: async (uid) => {
+    const snap = await firebase.database().ref(`documentos/${uid}`).get();
+    return snap.exists() ? snap.val() : null;
+  },
+
+  updateDocs: (uid, data) =>
+    firebase.database().ref(`documentos/${uid}`).update(data),
+
+  onDocs: (uid, cb) => {
+    const ref = firebase.database().ref(`documentos/${uid}`);
+    ref.on('value', snap => cb(snap.exists() ? snap.val() : null));
+    return () => ref.off('value');
+  },
+
+  getAllDocs: async () => {
+    const snap = await firebase.database().ref('documentos').get();
+    return snap.exists() ? snap.val() : {};
+  },
+
+  onAllDocs: (cb) => {
+    const ref = firebase.database().ref('documentos');
+    ref.on('value', snap => cb(snap.exists() ? snap.val() : {}));
+    return () => ref.off('value');
+  },
 };
