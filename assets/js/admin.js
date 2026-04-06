@@ -308,29 +308,6 @@ window.addEventListener('load', () => {
     const btn = document.getElementById('theme-btn');
     if (btn) btn.textContent = '☀️';
   }
-
-  // Firebase Auth maneja la sesión automáticamente
-  firebase.auth().onAuthStateChanged(async firebaseUser => {
-    // Ignorar si hay un popup de Google en progreso
-    if (window._popupEnProgreso) return;
-
-    if (firebaseUser) {
-      const u = await DB.getUser(firebaseUser.uid);
-      if (u && u.estatus !== 'bloqueado') {
-        // Solo iniciar app si no está ya activa
-        if (document.getElementById('screen-app').classList.contains('active')) return;
-        me = u;
-        DB.saveSession(u);
-        initApp();
-        return;
-      }
-      // Usuario en Firebase Auth pero no en DB — puede ser registro Google pendiente
-      if (window._googleUser) return;
-    }
-    // Sin sesión válida — mostrar landing solo si no estamos en otra pantalla de auth
-    const screens = ['screen-login','screen-register','screen-register-google'];
-    const enAuth = screens.some(s => document.getElementById('screen-' + s)?.classList.contains('active') ||
-                                     document.getElementById(s)?.classList.contains('active'));
-    if (!enAuth && !document.getElementById('screen-app').classList.contains('active')) go('landing');
-  });
+  // El login del admin se maneja desde adminLogin() en admin.html
+  // No usar onAuthStateChanged aquí para evitar conflictos con el SDK de auth
 });
