@@ -412,6 +412,7 @@
 <!-- Firebase SDK (compat - no requiere bundler) -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <!-- Firebase config -->
 <script src="../firebase/config.js"></script>
 <!-- Leaflet -->
@@ -419,5 +420,39 @@
 <!-- Admin JS -->
 <script src="../assets/js/db.js"></script>
 <script src="../assets/js/admin.js"></script>
+<script>
+// ── LOGIN DEL ADMINISTRADOR ──────────────────────
+function adminLogin() {
+  const email = document.getElementById('admin-email')?.value.trim();
+  const pass  = document.getElementById('admin-pass')?.value;
+  if (!email || !pass) { alert('Ingresa email y contraseña'); return; }
+
+  firebase.auth().signInWithEmailAndPassword(email, pass)
+    .then(async cred => {
+      const u = await DB.getUser(cred.user.uid);
+      if (!u) { firebase.auth().signOut(); alert('Usuario no encontrado'); return; }
+      if (u.rol !== 'admin') { firebase.auth().signOut(); alert('Acceso solo para administradores'); return; }
+      if (u.estatus === 'bloqueado') { firebase.auth().signOut(); alert('Cuenta bloqueada'); return; }
+      me = u;
+      DB.saveSession(u);
+      initApp();
+    })
+    .catch(err => {
+      const msgs = {
+        'auth/user-not-found':  'Usuario no encontrado',
+        'auth/wrong-password':  'Contraseña incorrecta',
+        'auth/invalid-email':   'Email inválido',
+        'auth/invalid-credential': 'Credenciales inválidas',
+      };
+      alert(msgs[err.code] || 'Error al iniciar sesión');
+    });
+}
+
+// Permitir Enter en el campo de contraseña
+window.addEventListener('load', () => {
+  const passEl = document.getElementById('admin-pass');
+  if (passEl) passEl.addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
+});
+</script>
 </body>
 </html>
