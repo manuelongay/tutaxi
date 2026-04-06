@@ -88,113 +88,43 @@ function toggleTheme() {
   localStorage.setItem('tt_theme', isLight ? 'light' : 'dark');
 }
 
-// ── INIT APP ──────────────────────────────────────
+// ── INIT APP (ADMIN) ─────────────────────────────
 function initApp() {
   go('app');
-  document.getElementById('tb-name').textContent = me.nom;
-  const rel = document.getElementById('tb-role');
+  if (document.getElementById('tb-name')) document.getElementById('tb-name').textContent = me.nom;
 
-  if (me.rol === 'chofer') {
-    rel.textContent  = '🚗 Chofer';
-    rel.className    = 'role-chip role-chofer';
-    document.getElementById('tab-chofer-btn').style.display    = 'block';
-    document.getElementById('tab-ganancias-btn').style.display = 'block';
-    document.getElementById('tab-inicio-btn').style.display    = 'none';
+  // Cargar dashboard inicial
+  showView('dashboard');
+  cargarDashboard();
+  cargarDocumentos();
 
-    setTimeout(() => {
-      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-      document.getElementById('t-driver').classList.add('active');
-      document.getElementById('tab-chofer-btn').classList.add('active');
-      driverOn = true;
-      document.getElementById('driver-sw').checked      = true;
-      document.getElementById('driver-sub').textContent = 'Estás disponible';
-      iniciarTracking();
-      DB.rides().then(rides => renderSolicitudes(rides));
-
-      // Mini-mapa solicitudes
-      setTimeout(() => initMapaSolicitudes(), 300);
-
-      // onRides dentro del setTimeout — driverOn ya es true aquí
-      let _ridesCache = [];
-      DB.onRides(rides => {
-        _ridesCache = rides;
-        renderSolicitudes(rides);
-        actualizarIconosChoferes(rides);
-        actualizarIconoPropio(rides);
-        // Verificar si hay viaje activo para mostrar/ocultar pestaña En curso
-        const activo = rides.find(r => r.chofId === me.id && ['en_camino','en_curso'].includes(r.est));
-        mostrarPestanaEncurso(activo || null);
-      });
-
-      // Actualizar otros conductores en mini-mapa
-      DB.onUsers(users => {
-        actualizarOtrosChoferesMini(users, _ridesCache);
-      });
-    }, 400);
-
-  } else {
-    rel.textContent  = '👤 Pasajero';
-    rel.className    = 'role-chip role-pasajero';
-    document.getElementById('tab-chofer-btn').style.display    = 'none';
-    document.getElementById('tab-ganancias-btn').style.display = 'none';
-    document.getElementById('tab-inicio-btn').style.display    = 'block';
-    setTimeout(async () => {
-      initMapa();
-      // Restaurar ruta si hay viaje activo al recargar
-      const rides = await DB.rides();
-      const activo = rides.find(r => r.pasId === me.id && ['pendiente','en_camino','en_curso'].includes(r.est));
-      if (activo) {
-        // Ocultar botón solicitar si hay viaje activo
-        const btnSolicitar = document.getElementById('btn-solicitar');
-        if (btnSolicitar) btnSolicitar.style.display = 'none';
-
-        if (activo.coordO && activo.coordD) {
-          coordO = activo.coordO;
-          coordD = activo.coordD;
-          document.getElementById('inp-origen').value  = activo.origen  || '';
-          document.getElementById('inp-destino').value = activo.destino || '';
-          setTimeout(() => {
-            ponerPin('origen',  coordO.lat, coordO.lng);
-            ponerPin('destino', coordD.lat, coordD.lng);
-            trazarRuta();
-          }, 400);
-        }
-
-        // Reiniciar tracking del conductor si aplica
-        if ((activo.est === 'en_camino' || activo.est === 'en_curso') && activo.chofId) {
-          setTimeout(() => iniciarMapaPasajero(activo), 500);
-        }
-      }
-    }, 350);
-
-    DB.onNotifs(me.id, notifs => {
-      notifs.forEach(n => {
-        mostrarNotifBanner(n.msg);
-        DB.markNotifRead(n.id);
-      });
+  // Escuchar alertas de emergencia y documentos en tiempo real
+  DB.onAllDocs(docs => {
+    let pendientes = 0;
+    if (docs) Object.values(docs).forEach(d => {
+      Object.values(d).forEach(doc => { if (doc?.est === 'subido') pendientes++; });
     });
+    const badge = document.getElementById('badge-docs');
+    if (badge) { badge.textContent = pendientes || ''; badge.style.display = pendientes ? 'block' : 'none'; }
+  });
+}
 
-    // onRides solo para pasajero
-    DB.onRides(rides => {
-      renderViajeActivo(rides);
-      actualizarIconosChoferes(rides);
-    });
-    // Tracking en tiempo real de choferes en el mapa
-    iniciarTrackingMapa();
-    // Tracking GPS continuo del pasajero (guarda lastLat en Firebase)
-    iniciarTrackingPasajero();
-  }
+async function cargarDashboard() {
+  try {
+    const [users, rides] = await Promise.all([DB.getUsers(), DB.getRides()]);
+    const choferes  = users.filter(u => u.rol === 'chofer');
+    const pasajeros = users.filter(u => u.rol === 'pasajero');
+    const activos   = rides.filter(r => ['pendiente','en_camino','en_curso'].includes(r.est));
+    const hoy       = new Date().toDateString();
+    const hoyRides  = rides.filter(r => new Date(r.fecha).toDateString() === hoy);
 
-  cargarTarifas();
-  refrescarPerfil();
-
-  const savedTheme = localStorage.getItem('tt_theme');
-  if (savedTheme === 'light') {
-    document.body.classList.add('light');
-    const btn = document.getElementById('theme-btn');
-    if (btn) btn.textContent = '☀️';
-  }
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('stat-choferes',  choferes.length);
+    set('stat-pasajeros', pasajeros.length);
+    set('stat-activos',   activos.length);
+    set('stat-hoy',       hoyRides.length);
+    set('badge-drivers',  choferes.filter(c => c.estatus !== 'bloqueado').length);
+  } catch(e) { console.error('Dashboard error:', e); }
 }
 
 
