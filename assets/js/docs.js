@@ -2,8 +2,11 @@
 // Subida a Cloudinary, estados, fechas de vencimiento, alertas
 // Cloudinary: upload preset 'tutaxi_docs' (unsigned), cloud name configurado abajo
 
-const CLOUDINARY_CLOUD = 'tutaxi';        // ← Cambiar por tu cloud name de Cloudinary
-const CLOUDINARY_PRESET = 'tutaxi_docs';  // ← Cambiar por tu upload preset (unsigned)
+//const CLOUDINARY_CLOUD = 'tutaxi';        // ← Cambiar por tu cloud name de Cloudinary
+//const CLOUDINARY_PRESET = 'tutaxi_docs';  // ← Cambiar por tu upload preset (unsigned)
+
+const CLOUDINARY_CLOUD = 'deuj7qpq1';        // ← Cambiar por tu cloud name de Cloudinary
+const CLOUDINARY_PRESET = 'tutaxi';  // ← Cambiar por tu upload preset (unsigned)
 
 // Días permitidos para subir documentos desde el registro
 const DIAS_SUBIR   = 5;
