@@ -429,22 +429,39 @@ function adminLogin() {
 
   firebase.auth().signInWithEmailAndPassword(email, pass)
     .then(async cred => {
-      const u = await DB.getUser(cred.user.uid);
-      if (!u) { firebase.auth().signOut(); alert('Usuario no encontrado'); return; }
-      if (u.rol !== 'admin') { firebase.auth().signOut(); alert('Acceso solo para administradores'); return; }
-      if (u.estatus === 'bloqueado') { firebase.auth().signOut(); alert('Cuenta bloqueada'); return; }
-      me = u;
-      DB.saveSession(u);
-      initApp();
+      try {
+        const u = await DB.getUser(cred.user.uid);
+        if (!u) { firebase.auth().signOut(); alert('Usuario no encontrado en la base de datos'); return; }
+        if (u.rol !== 'admin') { firebase.auth().signOut(); alert('Acceso solo para administradores'); return; }
+        if (u.estatus === 'bloqueado') { firebase.auth().signOut(); alert('Cuenta bloqueada'); return; }
+        me = u;
+        DB.saveSession(u);
+        // Mostrar panel antes de cargar datos
+        const login = document.getElementById('view-login');
+        const main  = document.getElementById('main-content');
+        if (login) login.style.display = 'none';
+        if (main)  main.style.display  = 'flex';
+        // Mostrar nombre
+        const tbName = document.getElementById('tb-name');
+        if (tbName) tbName.textContent = me.nom;
+        // Cargar vistas
+        showView('dashboard');
+        cargarDashboard();
+        cargarDocumentos();
+      } catch(appErr) {
+        console.error('Error iniciando app admin:', appErr);
+        alert('Login OK pero error al cargar el panel: ' + appErr.message);
+      }
     })
     .catch(err => {
       const msgs = {
-        'auth/user-not-found':  'Usuario no encontrado',
-        'auth/wrong-password':  'Contraseña incorrecta',
-        'auth/invalid-email':   'Email inválido',
+        'auth/user-not-found':     'Usuario no encontrado',
+        'auth/wrong-password':     'Contraseña incorrecta',
+        'auth/invalid-email':      'Email inválido',
         'auth/invalid-credential': 'Credenciales inválidas',
+        'auth/too-many-requests':  'Demasiados intentos, espera unos minutos',
       };
-      alert(msgs[err.code] || 'Error al iniciar sesión');
+      alert(msgs[err.code] || ('Error: ' + err.code + ' - ' + err.message));
     });
 }
 
