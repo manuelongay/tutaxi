@@ -7,16 +7,17 @@ let me = null;
 
 // ── NAVEGACIÓN ────────────────────────────────────
 function go(s) {
-  document.querySelectorAll('.screen').forEach(x => x.classList.remove('active'));
-  document.getElementById('screen-' + s).classList.add('active');
-  if (s === 'app') setTimeout(initMapa, 350);
-  // Rellenar datos de Google si aplica
-  if (s === 'register-google' && window._googleUser) {
-    const u = window._googleUser;
-    const el = id => document.getElementById(id);
-    if (el('rg-nombre'))     el('rg-nombre').textContent    = (u.nom + ' ' + u.ape).trim();
-    if (el('rg-email-show')) el('rg-email-show').textContent = u.email;
-    if (el('rg-foto') && u.foto) { el('rg-foto').src = u.foto; el('rg-foto').style.display = 'block'; }
+  // Admin panel usa view-login / main-content en lugar de screen-*
+  if (s === 'app') {
+    const login   = document.getElementById('view-login');
+    const main    = document.getElementById('main-content');
+    if (login) login.style.display = 'none';
+    if (main)  main.style.display  = 'flex';
+  } else if (s === 'landing' || s === 'login') {
+    const login = document.getElementById('view-login');
+    const main  = document.getElementById('main-content');
+    if (login) login.style.display = 'flex';
+    if (main)  main.style.display  = 'none';
   }
 }
 
