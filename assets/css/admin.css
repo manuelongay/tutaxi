@@ -142,3 +142,40 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .sw-sl::before { content: ''; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: .3s; }
 input:checked + .sw-sl { background: var(--green); }
 input:checked + .sw-sl::before { transform: translateX(24px); }
+
+/* ── Tabla de datos ── */
+.table-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .75rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  flex-wrap: wrap;
+}
+.table-row:last-child { border-bottom: none; }
+.table-row:hover { background: rgba(255,255,255,.03); }
+.empty-row {
+  text-align: center;
+  padding: 2rem;
+  color: rgba(255,255,255,.3);
+  font-size: .85rem;
+}
+
+/* ── Badges ── */
+.badge {
+  font-size: .7rem;
+  font-weight: 700;
+  padding: .2rem .6rem;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+.badge-blue   { background: rgba(99,102,241,.15);  color: #818cf8; }
+.badge-green  { background: rgba(34,197,94,.15);   color: #22c55e; }
+.badge-gray   { background: rgba(255,255,255,.08); color: rgba(255,255,255,.5); }
+.badge-red    { background: rgba(239,68,68,.15);   color: #ef4444; }
+.badge-purple { background: rgba(168,85,247,.15);  color: #c084fc; }
+.badge-orange { background: rgba(249,115,22,.15);  color: #fb923c; }
+
+/* ── Views ── */
+.view { display: none; }
+.view.active { display: block; }
