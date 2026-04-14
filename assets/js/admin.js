@@ -302,6 +302,204 @@ async function solicitarRenovacion(uid, key, label) {
   await cargarDocumentos();
 }
 
+
+// ══════════════════════════════════════════════════════════
+// FUNCIONES DE DATOS DEL PANEL ADMIN
+// ══════════════════════════════════════════════════════════
+
+let _allUsers    = [];
+let _allRides    = [];
+let _filterUsers = 'all';
+let _filterDrivers = 'all';
+let _searchUsers = '';
+let _searchPassengers = '';
+
+// ── Cargar dashboard ─────────────────────────────────────
+async function cargarDashboard() {
+  try {
+    [_allUsers, _allRides] = await Promise.all([DB.getUsers(), DB.getRides()]);
+
+    const choferes  = _allUsers.filter(u => u.rol === 'chofer');
+    const pasajeros = _allUsers.filter(u => u.rol === 'pasajero');
+    const completados = _allRides.filter(r => r.est === 'completado');
+    const pendientes  = _allRides.filter(r => ['pendiente','en_camino','en_curso'].includes(r.est));
+
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('stat-total',           _allUsers.length);
+    set('stat-pasajeros',       pasajeros.length);
+    set('stat-choferes',        choferes.length);
+    set('stat-rides-completed', completados.length);
+    set('stat-rides-pending',   pendientes.length);
+    // badge drivers
+    const bd = document.getElementById('badge-drivers');
+    if (bd) { bd.textContent = choferes.length; bd.style.display = choferes.length ? 'block' : 'none'; }
+
+    // Usuarios recientes (últimos 5)
+    const recientes = [..._allUsers].sort((a,b) => (b.fechaRegistro||'') > (a.fechaRegistro||'') ? 1 : -1).slice(0,5);
+    renderUserRows('recent-users-table', recientes);
+  } catch(e) { console.error('Dashboard:', e); }
+}
+
+// ── Render de tabla de usuarios ───────────────────────────
+function renderUserRows(containerId, users) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+  if (!users.length) { wrap.innerHTML = '<div class="empty-row">Sin registros</div>'; return; }
+
+  wrap.innerHTML = users.map(u => {
+    const rolPill = u.rol === 'chofer'
+      ? '<span class="badge badge-blue">🚗 Chofer</span>'
+      : u.rol === 'admin'
+      ? '<span class="badge badge-purple">⚙️ Admin</span>'
+      : '<span class="badge badge-gray">👤 Pasajero</span>';
+    const estPill = u.estatus === 'bloqueado'
+      ? '<span class="badge badge-red">Bloqueado</span>'
+      : '<span class="badge badge-green">Activo</span>';
+    const foto = u.foto
+      ? `<img src="${u.foto}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:.5rem;">`
+      : `<span style="display:inline-flex;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.1);align-items:center;justify-content:center;margin-right:.5rem;font-size:.9rem;">${u.nom?.[0]||'?'}</span>`;
+
+    return `<div class="table-row">
+      <div style="display:flex;align-items:center;flex:2;min-width:150px;">
+        ${foto}<div>
+          <div style="font-weight:600;font-size:.88rem;">${u.nom||''} ${u.ape||''}</div>
+          <div style="font-size:.72rem;color:rgba(255,255,255,.4);">${u.email||''}</div>
+        </div>
+      </div>
+      <div style="flex:1;">${rolPill}</div>
+      <div style="flex:1;">${estPill}</div>
+      <div style="flex:1;font-size:.78rem;color:rgba(255,255,255,.4);">${u.tel||'—'}</div>
+      <div style="flex:1;display:flex;gap:.4rem;flex-wrap:wrap;">
+        ${u.estatus !== 'bloqueado'
+          ? `<button onclick="bloquearUsuario('${u.id}')" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#ef4444;border-radius:6px;padding:.25rem .6rem;font-size:.72rem;cursor:pointer;">Bloquear</button>`
+          : `<button onclick="desbloquearUsuario('${u.id}')" style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:#22c55e;border-radius:6px;padding:.25rem .6rem;font-size:.72rem;cursor:pointer;">Activar</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Filtros y búsqueda ────────────────────────────────────
+function filterUsers(filtro, btn) {
+  _filterUsers = filtro;
+  document.querySelectorAll('#view-users .filter-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderAllUsers();
+}
+
+function filterDrivers(filtro, btn) {
+  _filterDrivers = filtro;
+  document.querySelectorAll('#view-drivers .filter-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderDrivers();
+}
+
+function searchUsers(val) {
+  _searchUsers = val.toLowerCase();
+  renderAllUsers();
+}
+
+function searchPassengers(val) {
+  _searchPassengers = val.toLowerCase();
+  renderPassengers();
+}
+
+function renderAllUsers() {
+  let users = _allUsers;
+  if (_filterUsers !== 'all') users = users.filter(u => u.estatus === _filterUsers);
+  if (_searchUsers) users = users.filter(u =>
+    (u.nom+' '+(u.ape||'')+' '+(u.email||'')+' '+(u.tel||'')).toLowerCase().includes(_searchUsers));
+  renderUserRows('all-users-table', users);
+}
+
+function renderPassengers() {
+  let users = _allUsers.filter(u => u.rol === 'pasajero');
+  if (_searchPassengers) users = users.filter(u =>
+    (u.nom+' '+(u.ape||'')+' '+(u.email||'')+' '+(u.tel||'')).toLowerCase().includes(_searchPassengers));
+  renderUserRows('passengers-table', users);
+}
+
+function renderDrivers() {
+  let drivers = _allUsers.filter(u => u.rol === 'chofer');
+  if (_filterDrivers !== 'all') drivers = drivers.filter(u => u.estatus === _filterDrivers);
+  renderUserRows('drivers-table', drivers);
+}
+
+// ── Acciones sobre usuarios ───────────────────────────────
+async function bloquearUsuario(uid) {
+  if (!confirm('¿Bloquear este usuario?')) return;
+  await DB.updateUser(uid, { estatus: 'bloqueado' });
+  toast('Usuario bloqueado', 'err');
+  await cargarDashboard();
+  renderAllUsers(); renderPassengers(); renderDrivers();
+}
+
+async function desbloquearUsuario(uid) {
+  await DB.updateUser(uid, { estatus: 'activo' });
+  toast('Usuario activado', 'ok');
+  await cargarDashboard();
+  renderAllUsers(); renderPassengers(); renderDrivers();
+}
+
+// ── Rides ─────────────────────────────────────────────────
+let _filterRides = 'all';
+function filterRides(filtro, btn) {
+  _filterRides = filtro;
+  document.querySelectorAll('#view-rides .filter-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderRides();
+}
+
+function renderRides() {
+  const wrap = document.getElementById('rides-table');
+  if (!wrap) return;
+  let rides = _allRides;
+  if (_filterRides !== 'all') rides = rides.filter(r => r.est === _filterRides);
+  rides = [...rides].sort((a,b) => (b.fecha||'') > (a.fecha||'') ? 1 : -1);
+
+  if (!rides.length) { wrap.innerHTML = '<div class="empty-row">Sin viajes</div>'; return; }
+
+  const estPills = {
+    pendiente:  '<span class="badge badge-gray">Pendiente</span>',
+    en_camino:  '<span class="badge badge-blue">En camino</span>',
+    en_curso:   '<span class="badge badge-green">En curso</span>',
+    completado: '<span class="badge badge-purple">Completado</span>',
+    cancelado:  '<span class="badge badge-red">Cancelado</span>',
+  };
+
+  wrap.innerHTML = rides.map(r => `
+    <div class="table-row">
+      <div style="flex:2;min-width:140px;">
+        <div style="font-size:.82rem;font-weight:600;">${r.pasNom||'—'}</div>
+        <div style="font-size:.7rem;color:rgba(255,255,255,.4);">${r.origen||''}</div>
+        <div style="font-size:.7rem;color:rgba(255,255,255,.3);">→ ${r.destino||''}</div>
+      </div>
+      <div style="flex:1;">${estPills[r.est] || r.est}</div>
+      <div style="flex:1;font-size:.82rem;">${r.chofNom||'Sin asignar'}</div>
+      <div style="flex:1;font-size:.82rem;color:#f5c518;font-weight:700;">$${r.precio||0}</div>
+      <div style="flex:1;font-size:.7rem;color:rgba(255,255,255,.4);">${r.fecha ? new Date(r.fecha).toLocaleDateString('es-MX') : '—'}</div>
+    </div>`).join('');
+}
+
+// ── Cargar vistas al navegar ──────────────────────────────
+const _viewLoaders = {
+  users:      () => { if (!_allUsers.length) cargarDashboard(); else renderAllUsers(); },
+  passengers: () => { if (!_allUsers.length) cargarDashboard().then(renderPassengers); else renderPassengers(); },
+  drivers:    () => { if (!_allUsers.length) cargarDashboard().then(renderDrivers); else renderDrivers(); },
+  rides:      async () => { if (!_allRides.length) [_allUsers, _allRides] = await Promise.all([DB.getUsers(), DB.getRides()]); renderRides(); },
+  documentos: () => cargarDocumentos(),
+};
+
+// Override showView to load data on navigate
+const _origShowView = showView;
+function showView(viewId) {
+  _origShowView(viewId);
+  if (_viewLoaders[viewId]) _viewLoaders[viewId]();
+  // Update topbar title
+  const titles = { dashboard:'Dashboard', users:'Usuarios', passengers:'Pasajeros', drivers:'Choferes', rides:'Viajes', mapa:'Mapa en vivo', documentos:'Documentos', tarifas:'Tarifas' };
+  const tb = document.getElementById('topbar-title');
+  if (tb && titles[viewId]) tb.textContent = titles[viewId];
+}
+
 // ── ARRANQUE ──────────────────────────────────────
 window.addEventListener('load', () => {
   if (localStorage.getItem('tt_theme') === 'light') {
