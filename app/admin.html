@@ -530,25 +530,25 @@
   <nav class="sidebar-nav">
     <div class="nav-section-title">Principal</div>
     <div class="nav-item active" onclick="showView('dashboard')">
-      <div class="nav-icon">??</div> Dashboard
+      <div class="nav-icon">📊</div> Dashboard
     </div>
 
     <div class="nav-section-title">Usuarios</div>
     <div class="nav-item" onclick="showView('users')">
-      <div class="nav-icon">??</div> Todos los usuarios
+      <div class="nav-icon">👥</div> Todos los usuarios
       <span class="nav-badge" id="badge-users">0</span>
     </div>
     <div class="nav-item" onclick="showView('passengers')">
-      <div class="nav-icon">??</div> Pasajeros
+      <div class="nav-icon">👤</div> Pasajeros
     </div>
     <div class="nav-item" onclick="showView('drivers')">
-      <div class="nav-icon">??</div> Choferes
+      <div class="nav-icon">🚗</div> Choferes
       <span class="nav-badge" id="badge-drivers">0</span>
     </div>
 
     <div class="nav-section-title">Operaciones</div>
     <div class="nav-item" onclick="showView('rides')">
-      <div class="nav-icon">??️</div> Viajes
+      <div class="nav-icon">🛣️</div> Viajes
       <span class="nav-badge" id="badge-rides">0</span>
     </div>
     <div class="nav-item" onclick="showView('documentos');cargarDocumentos()">
@@ -592,17 +592,17 @@
 
       <div class="stats-grid">
         <div class="stat-card yellow">
-          <div class="stat-icon">??</div>
+          <div class="stat-icon">👥</div>
           <div class="stat-value" id="stat-total">0</div>
           <div class="stat-label">Total usuarios</div>
         </div>
         <div class="stat-card purple">
-          <div class="stat-icon">??</div>
+          <div class="stat-icon">👤</div>
           <div class="stat-value" id="stat-pasajeros">0</div>
           <div class="stat-label">Pasajeros</div>
         </div>
         <div class="stat-card orange">
-          <div class="stat-icon">??</div>
+          <div class="stat-icon">🚗</div>
           <div class="stat-value" id="stat-choferes">0</div>
           <div class="stat-label">Choferes</div>
         </div>
@@ -644,7 +644,7 @@
               <button class="filter-tab" onclick="filterUsers('bloqueado', this)">Bloqueados</button>
             </div>
           </div>
-          <input class="search-input" placeholder="?? Buscar..." oninput="searchUsers(this.value)">
+          <input class="search-input" placeholder="🔍 Buscar..." oninput="searchUsers(this.value)">
         </div>
         <div id="all-users-table"></div>
       </div>
@@ -659,7 +659,7 @@
       <div class="table-wrap">
         <div class="table-header">
           <div class="table-title">Pasajeros registrados</div>
-          <input class="search-input" placeholder="?? Buscar..." oninput="searchPassengers(this.value)">
+          <input class="search-input" placeholder="🔍 Buscar..." oninput="searchPassengers(this.value)">
         </div>
         <div id="passengers-table"></div>
       </div>
@@ -681,7 +681,7 @@
               <button class="filter-tab" onclick="filterDrivers('bloqueado', this)">Bloqueados</button>
             </div>
           </div>
-          <input class="search-input" placeholder="?? Buscar...">
+          <input class="search-input" placeholder="🔍 Buscar...">
         </div>
         <div id="drivers-table"></div>
       </div>
@@ -824,7 +824,7 @@ function adminLogin() {
     document.getElementById('main-content').style.display = 'flex';
     adminLoggedIn = true;
     refreshAll();
-    toast('Bienvenido, Administrador ??️', 'success');
+    toast('Bienvenido, Administrador 🛡️', 'success');
   } else {
     toast('Credenciales incorrectas', 'error');
   }
@@ -866,15 +866,15 @@ async function refreshAll() {
   // badges
   document.getElementById('badge-users').textContent = users.length;
   document.getElementById('badge-drivers').textContent = choferes.length;
-  document.getElementById('badge-rides').textContent = rides.filter(r => r.est === 'pendiente').length;
+  document.getElementById('badge-rides').textContent = rides.filter(r => r.est||r.est === 'pendiente').length;
 
   // stats
   if (document.getElementById('stat-total')) {
     document.getElementById('stat-total').textContent = users.length;
     document.getElementById('stat-pasajeros').textContent = pasajeros.length;
     document.getElementById('stat-choferes').textContent = choferes.length;
-    document.getElementById('stat-rides-completed').textContent = rides.filter(r => r.est === 'completado').length;
-    document.getElementById('stat-rides-pending').textContent = rides.filter(r => r.est === 'pendiente').length;
+    document.getElementById('stat-rides-completed').textContent = rides.filter(r => r.est||r.est === 'completado').length;
+    document.getElementById('stat-rides-pending').textContent = rides.filter(r => r.est||r.est === 'pendiente').length;
   }
 
   renderRecentUsers(users);
@@ -890,16 +890,16 @@ function estatusBadge(e) {
 }
 
 function statusBadge(s) {
-  const icons = { pendiente:'⏳', aceptado:'??', completado:'✅', cancelado:'✕' };
+  const icons = { pendiente:'⏳', aceptado:'🚗', completado:'✅', cancelado:'✕' };
   return `<span class="badge badge-${s}">${icons[s]||''} ${s}</span>`;
 }
 
 function rolBadge(r) {
-  return `<span class="badge badge-${r}">${r === 'chofer' ? '?? Chofer' : '?? Pasajero'}</span>`;
+  return `<span class="badge badge-${r}">${r === 'chofer' ? '🚗 Chofer' : '👤 Pasajero'}</span>`;
 }
 
 function emptyRow(msg) {
-  return `<div class="empty"><div class="empty-icon">??</div><div class="empty-title">${msg}</div></div>`;
+  return `<div class="empty"><div class="empty-icon">📭</div><div class="empty-title">${msg}</div></div>`;
 }
 
 function formatDate(d) {
@@ -924,7 +924,7 @@ function renderRecentUsers(users) {
 function userRow(u) {
   return `
     <tr>
-      <td><strong>${(u.nom||u.nombre||'')} ${(u.ape||u.apellido||'')}</strong></td>
+      <td><strong>${u.nom||u.nombre||""} ${u.ape||u.apellido||''}</strong></td>
       <td style="color:var(--gray3);">${u.email}</td>
       <td>${rolBadge(u.rol)}</td>
       <td>${estatusBadge(u.estatus)}</td>
@@ -996,7 +996,7 @@ function renderPassengers(passengers) {
       <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Estado</th><th>Registro</th><th>Acciones</th></tr></thead>
       <tbody>${filtered.map(u => `
         <tr>
-          <td><strong>${(u.nom||u.nombre||'')} ${(u.ape||u.apellido||'')}</strong></td>
+          <td><strong>${u.nom||u.nombre||""} ${u.ape||u.apellido||''}</strong></td>
           <td style="color:var(--gray3);">${u.email}</td>
           <td>${u.tel||u.telefono||'—'}</td>
           <td>${estatusBadge(u.estatus)}</td>
@@ -1026,23 +1026,23 @@ function renderDrivers(drivers) {
   const el = document.getElementById('drivers-table');
   if (!el) return;
   let filtered = drivers;
-  if (driversFilter !== 'all') filtered = filtered.filter(u => ((u.estatus||'activo')) === driversFilter);
+  if (driversFilter !== 'all') filtered = filtered.filter(u => (u.estatus||'activo') === driversFilter);
   if (filtered.length === 0) { el.innerHTML = emptyRow('Sin choferes registrados'); return; }
   el.innerHTML = `
     <table>
       <thead><tr><th>Nombre</th><th>Correo</th><th>Vehículo</th><th>Placas</th><th>Est. cuenta</th><th>Est. chofer</th><th>Acciones</th></tr></thead>
       <tbody>${filtered.map(u => `
         <tr>
-          <td><strong>${(u.nom||u.nombre||'')} ${(u.ape||u.apellido||'')}</strong></td>
+          <td><strong>${u.nom||u.nombre||""} ${u.ape||u.apellido||''}</strong></td>
           <td style="color:var(--gray3); font-size:0.82rem;">${u.email}</td>
-          <td>${(u.veh||u.vehiculo||'—')}</td>
-          <td><code style="background:var(--gray2);padding:0.1rem 0.4rem;border-radius:6px;font-size:0.82rem;">${(u.pla||u.placas||'—')}</code></td>
+          <td>${u.veh||(u.veh||u.vehiculo||'—')}</td>
+          <td><code style="background:var(--gray2);padding:0.1rem 0.4rem;border-radius:6px;font-size:0.82rem;">${u.pla||(u.pla||u.placas||'—')}</code></td>
           <td>${estatusBadge(u.estatus)}</td>
-          <td>${estatusBadge((u.estatus||'activo'))}</td>
+          <td>${estatusBadge(u.estatus||'activo')}</td>
           <td>
             <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
               <button class="btn btn-sm btn-info" onclick="openUserModal('${u.id}')">Ver</button>
-              ${((u.estatus||'activo')) === 'activo'
+              ${(u.estatus||'activo') === 'activo'
                 ? `<button class="btn btn-sm btn-danger" onclick="toggleDriverStatus('${u.id}','bloqueado')">Bloquear</button>`
                 : `<button class="btn btn-sm btn-success" onclick="toggleDriverStatus('${u.id}','activo')">Activar</button>`}
             </div>
@@ -1066,7 +1066,7 @@ function renderRides(rides) {
   const el = document.getElementById('rides-table');
   if (!el) return;
   let filtered = rides;
-  if (ridesFilter !== 'all') filtered = filtered.filter(r => r.est === ridesFilter);
+  if (ridesFilter !== 'all') filtered = filtered.filter(r => r.est||(r.est||r.estatus) === ridesFilter);
   if (filtered.length === 0) { el.innerHTML = emptyRow('Sin viajes'); return; }
   filtered.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
   el.innerHTML = `
@@ -1074,12 +1074,12 @@ function renderRides(rides) {
       <thead><tr><th>Pasajero</th><th>Origen</th><th>Destino</th><th>Precio</th><th>Chofer</th><th>Estado</th><th>Fecha</th></tr></thead>
       <tbody>${filtered.map(r => `
         <tr>
-          <td><strong>${(r.pasNom||r.pasajeroNombre||'—')}</strong></td>
+          <td><strong>${r.pasNom||(r.pasNom||r.pasajeroNombre||'—')||'—'}</strong></td>
           <td style="color:var(--gray3);font-size:0.83rem;">${r.origen}</td>
           <td style="font-size:0.83rem;">${r.destino}</td>
           <td style="color:var(--accent);font-family:'Syne',sans-serif;font-weight:700;">$${r.precio}</td>
-          <td style="color:var(--gray3);font-size:0.83rem;">${(r.chofNom||r.choferNombre||'—')}</td>
-          <td>${statusBadge(r.estatus)}</td>
+          <td style="color:var(--gray3);font-size:0.83rem;">${r.chofNom||(r.chofNom||r.choferNombre||'—')}</td>
+          <td>${statusBadge(r.est||r.estatus)}</td>
           <td style="color:var(--gray3);font-size:0.8rem;">${formatDate(r.fecha)}</td>
         </tr>`).join('')}
       </tbody>
@@ -1119,13 +1119,13 @@ async function openUserModal(userId) {
 
   document.getElementById('modal-body').innerHTML = `
     <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;">
-      <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;color:var(--black);">${((u.nom||u.nombre||'?')[0]+((u.ape||u.apellido||'')?.[0]||'')).toUpperCase()}</div>
+      <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:1.4rem;color:var(--black);">${((u.nom||u.nombre||'?')[0]+((u.ape||u.apellido)?.[0]||'')).toUpperCase()}</div>
       <div>
         ${rolBadge(u.rol)}
         <div style="margin-top:0.5rem;">${estatusBadge(u.estatus)}</div>
       </div>
     </div>
-    <div class="info-row"><span class="info-key">Nombre completo</span><span class="info-val">${(u.nom||u.nombre||'')} ${(u.ape||u.apellido||'')}</span></div>
+    <div class="info-row"><span class="info-key">Nombre completo</span><span class="info-val">${u.nom||u.nombre||""} ${u.ape||u.apellido||''}</span></div>
     <div class="info-row"><span class="info-key">Correo</span><span class="info-val">${u.email}</span></div>
     <div class="info-row"><span class="info-key">Teléfono</span><span class="info-val">${u.tel||u.telefono||'—'}</span></div>
     <div class="info-row"><span class="info-key">Registro</span><span class="info-val">${formatDate(u.fechaRegistro)}</span></div>
@@ -1133,17 +1133,17 @@ async function openUserModal(userId) {
     ${u.rol === 'chofer' ? `
       <div style="margin-top:1.2rem; padding-top:1.2rem; border-top:1px solid rgba(255,255,255,.06);">
         <div style="font-family:'Syne',sans-serif;font-size:0.78rem;color:var(--gray3);text-transform:uppercase;letter-spacing:1px;margin-bottom:0.8rem;">Datos del vehículo</div>
-        <div class="info-row"><span class="info-key">Vehículo</span><span class="info-val">${(u.veh||u.vehiculo||'—')}</span></div>
-        <div class="info-row"><span class="info-key">Placas</span><span class="info-val">${(u.pla||u.placas||'—')}</span></div>
+        <div class="info-row"><span class="info-key">Vehículo</span><span class="info-val">${u.veh||(u.veh||u.vehiculo||'—')}</span></div>
+        <div class="info-row"><span class="info-key">Placas</span><span class="info-val">${u.pla||(u.pla||u.placas||'—')}</span></div>
         <div class="info-row"><span class="info-key">Color</span><span class="info-val">${u.color||'—'}</span></div>
-        <div class="info-row"><span class="info-key">Licencia</span><span class="info-val">${(u.lic||u.licencia||'—')}</span></div>
+        <div class="info-row"><span class="info-key">Licencia</span><span class="info-val">${u.lic||(u.lic||u.licencia||'—')}</span></div>
         <div class="info-row"><span class="info-key">Estado chofer</span><span class="info-val">${estatusBadge(u.estatus||'activo')}</span></div>
       </div>` : ''}
   `;
 
   const actions = document.getElementById('modal-actions');
   if (u.rol === 'chofer') {
-    const driverBtn = ((u.estatus||'activo')) === 'activo'
+    const driverBtn = (u.estatus||'activo') === 'activo'
       ? `<button class="btn btn-danger" onclick="toggleDriverStatus('${u.id}','bloqueado');closeModal();">Bloquear como chofer</button>`
       : `<button class="btn btn-success" onclick="toggleDriverStatus('${u.id}','activo');closeModal();">Activar como chofer</button>`;
     actions.innerHTML = driverBtn;
