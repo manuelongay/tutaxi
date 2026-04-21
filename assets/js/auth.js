@@ -42,10 +42,25 @@ async function doRegister() {
       user.estatusChofer = 'activo';
     }
 
+    // Verificar si hay invitación pendiente para este email
+    const invitacion = await DB.getInvitacion(email);
+    if (invitacion) {
+      user.rol       = invitacion.rol || 'admin';
+      user.companyId = invitacion.companyId || null;
+      await DB.deleteInvitacion(email);
+      // Actualizar compañía con el adminUid si aplica
+      if (invitacion.companyId && invitacion.rol === 'admin') {
+        await DB.updateCompany(invitacion.companyId, { adminUid: uid });
+      }
+    }
+
     await DB.saveUser(user);
     DB.saveSession(user);
     me = user;
-    toast('¡Cuenta creada! 🎉', 'ok');
+    const bienvenida = invitacion
+      ? `¡Bienvenido como administrador de ${invitacion.companyNombre || 'tu compañía'}! 🎉`
+      : '¡Cuenta creada! 🎉';
+    toast(bienvenida, 'ok');
     initApp();
   } catch (e) {
     toast(firebaseAuthError(e.code), 'err');
