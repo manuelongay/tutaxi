@@ -219,4 +219,28 @@ const DB = {
 
   saveTarifasCompany: (companyId, tarifas) =>
     firebase.database().ref(`config/tarifas_${companyId}`).set(tarifas),
+
+  // ── Invitaciones ─────────────────────────────────
+  // Clave: email codificado (reemplazar . por ,)
+  saveInvitacion: (inv) => {
+    const key = inv.email.replace(/\./g, ',');
+    return firebase.database().ref(`invitaciones/${key}`).set(inv);
+  },
+
+  getInvitacion: async (email) => {
+    const key = email.replace(/\./g, ',');
+    const snap = await firebase.database().ref(`invitaciones/${key}`).get();
+    return snap.exists() ? snap.val() : null;
+  },
+
+  deleteInvitacion: (email) => {
+    const key = email.replace(/\./g, ',');
+    return firebase.database().ref(`invitaciones/${key}`).remove();
+  },
+
+  getInvitaciones: async () => {
+    const snap = await firebase.database().ref('invitaciones').get();
+    if (!snap.exists()) return [];
+    return Object.values(snap.val());
+  },
 };
