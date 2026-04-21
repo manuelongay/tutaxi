@@ -558,6 +558,10 @@
     <div class="nav-item" id="nav-companies" style="display:none;" onclick="showView('companies');cargarCompanies()">
       <div class="nav-icon">🏢</div> Compañías
     </div>
+    <div class="nav-item" id="nav-invitaciones" style="display:none;" onclick="showView('invitaciones');cargarInvitaciones()">
+      <div class="nav-icon">✉️</div> Invitaciones
+      <span class="nav-badge" id="badge-invitaciones" style="display:none;">0</span>
+    </div>
   </nav>
 
   <div class="sidebar-footer">
@@ -735,6 +739,15 @@
       </div>
     </div>
 
+    <!-- INVITACIONES (solo superadmin) -->
+    <div id="view-invitaciones" class="view">
+      <div class="section-header">
+        <h2>Invitaciones pendientes</h2>
+        <p>Administradores invitados que aún no se han registrado</p>
+      </div>
+      <div id="invitaciones-table"></div>
+    </div>
+
     <!-- COMPAÑÍAS (solo superadmin) -->
     <div id="view-companies" class="view">
       <div class="section-header">
@@ -867,7 +880,9 @@ function adminLogin() {
       if (roleEl) roleEl.textContent = u.rol === 'superadmin' ? '⭐ Super Admin' : '🔧 Administrador';
       // Mostrar/ocultar sección de compañías solo para superadmin
       const compNav = document.getElementById('nav-companies');
+      const invNav  = document.getElementById('nav-invitaciones');
       if (compNav) compNav.style.display = u.rol === 'superadmin' ? 'flex' : 'none';
+      if (invNav)  invNav.style.display  = u.rol === 'superadmin' ? 'flex' : 'none';
       refreshAll();
       toast('Bienvenido, ' + u.nom + ' 🛡️', 'success');
     })
@@ -893,7 +908,7 @@ function adminLogout() {
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 const viewTitles = {
   dashboard: 'Dashboard', users: 'Usuarios', passengers: 'Pasajeros',
-  drivers: 'Choferes', rides: 'Viajes', documentos: 'Documentos', companies: 'Compañías',
+  drivers: 'Choferes', rides: 'Viajes', documentos: 'Documentos', companies: 'Compañías', invitaciones: 'Invitaciones pendientes',
 };
 
 function showView(name) {
@@ -1400,24 +1415,37 @@ function mostrarFormCompany() {
 
 async function crearCompany() {
   const nombre = document.getElementById('comp-nombre').value.trim();
-  const email  = document.getElementById('comp-admin-email').value.trim();
+  const email  = document.getElementById('comp-admin-email').value.trim().toLowerCase();
   if (!nombre) { toast('Ingresa el nombre de la compañía', 'error'); return; }
 
   const id = 'comp_' + Date.now();
   const company = { id, nombre, activo: true, fechaCreacion: new Date().toISOString(), adminUid: null };
-
   await DB.saveCompany(company);
 
-  // Si se proporcionó email de admin, buscar ese usuario y asignarle la compañía
   if (email) {
+    // Verificar si el usuario ya existe en la DB
     const users = await DB.getUsers();
-    const adminUser = users.find(u => u.email === email);
-    if (adminUser) {
-      await DB.updateUser(adminUser.id, { companyId: id, rol: 'admin' });
-      await DB.updateCompany(id, { adminUid: adminUser.id });
+    const existente = users.find(u => u.email === email);
+    if (existente) {
+      // Ya existe — asignar directamente
+      await DB.updateUser(existente.id, { companyId: id, rol: 'admin' });
+      await DB.updateCompany(id, { adminUid: existente.id });
       toast(`Compañía "${nombre}" creada y admin asignado ✅`, 'success');
     } else {
-      toast(`Compañía "${nombre}" creada. Email de admin no encontrado — asígnalo manualmente.`, 'success');
+      // No existe — crear invitación
+      await DB.saveInvitacion({
+        email,
+        rol:           'admin',
+        companyId:     id,
+        companyNombre: nombre,
+        creadoPor:     currentAdmin?.id || 'superadmin',
+        fecha:         new Date().toISOString(),
+        usado:         false,
+      });
+      // Mostrar link de registro para compartir
+      const link = `${window.location.origin}/tutaxi/app/webapp.html`;
+      _mostrarModalInvitacion(email, nombre, link);
+      toast(`Compañía "${nombre}" creada. Invitación enviada a ${email} ✅`, 'success');
     }
   } else {
     toast(`Compañía "${nombre}" creada ✅`, 'success');
@@ -1429,6 +1457,53 @@ async function crearCompany() {
   await cargarCompanies();
 }
 
+function _mostrarModalInvitacion(email, companyNombre, link) {
+  const prev = document.getElementById('modal-invitacion');
+  if (prev) prev.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-invitacion';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1.5rem;';
+
+  const waMensaje = encodeURIComponent(
+    `Hola, has sido invitado como administrador de la compañía "${companyNombre}" en tuTaxi.
+
+` +
+    `Regístrate en este link con el email: ${email}
+${link}
+
+` +
+    `Una vez que te registres, tu cuenta quedará configurada automáticamente como administrador.`
+  );
+
+  modal.innerHTML = `
+    <div style="background:#1a1a2e;border-radius:18px;width:100%;max-width:480px;padding:2rem;border:1px solid rgba(255,255,255,.1);">
+      <div style="font-size:1.3rem;margin-bottom:.5rem;">✉️ Invitación generada</div>
+      <div style="font-size:.85rem;color:rgba(255,255,255,.6);margin-bottom:1.2rem;">
+        Comparte este mensaje con <strong>${email}</strong> para que se registre como admin de <strong>${companyNombre}</strong>.
+      </div>
+      <div style="background:rgba(255,255,255,.06);border-radius:10px;padding:.9rem;font-size:.78rem;color:rgba(255,255,255,.7);margin-bottom:1.2rem;word-break:break-all;">
+        Al registrarse con el email <strong>${email}</strong> en la app, quedará configurado automáticamente como administrador de <strong>${companyNombre}</strong>.
+        <br><br>Link de registro: <strong>${link}</strong>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.6rem;">
+        <button onclick="navigator.clipboard.writeText('${link}').then(()=>toast('Link copiado 📋','success'))"
+          style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:10px;padding:.7rem;cursor:pointer;">
+          📋 Copiar link de registro
+        </button>
+        <a href="https://wa.me/?text=${waMensaje}" target="_blank"
+          style="background:#25D366;color:#fff;border-radius:10px;padding:.7rem;text-align:center;text-decoration:none;font-weight:600;display:block;">
+          📱 Enviar por WhatsApp
+        </a>
+        <button onclick="document.getElementById('modal-invitacion').remove()"
+          style="background:transparent;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.5);border-radius:10px;padding:.65rem;cursor:pointer;">
+          Cerrar
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
 async function toggleCompany(id, activo) {
   await DB.updateCompany(id, { activo });
   toast(activo ? 'Compañía activada' : 'Compañía desactivada', activo ? 'success' : 'error');
@@ -1436,14 +1511,32 @@ async function toggleCompany(id, activo) {
 }
 
 async function gestionarAdminCompany(companyId) {
-  const email = prompt('Email del nuevo administrador de esta compañía:');
+  const company = (await DB.getCompanies()).find(c => c.id === companyId);
+  const email = prompt(`Email del nuevo administrador para "${company?.nombre || companyId}":
+(Si el usuario ya existe se asigna directo, si no se crea una invitación)`);
   if (!email) return;
+  const emailLower = email.trim().toLowerCase();
+
   const users = await DB.getUsers();
-  const u = users.find(u => u.email === email.trim().toLowerCase());
-  if (!u) { toast('Usuario no encontrado', 'error'); return; }
-  await DB.updateUser(u.id, { companyId, rol: 'admin' });
-  await DB.updateCompany(companyId, { adminUid: u.id });
-  toast('Admin asignado correctamente ✅', 'success');
+  const existente = users.find(u => u.email === emailLower);
+  if (existente) {
+    await DB.updateUser(existente.id, { companyId, rol: 'admin' });
+    await DB.updateCompany(companyId, { adminUid: existente.id });
+    toast('Admin asignado correctamente ✅', 'success');
+  } else {
+    await DB.saveInvitacion({
+      email: emailLower,
+      rol:           'admin',
+      companyId,
+      companyNombre: company?.nombre || '',
+      creadoPor:     currentAdmin?.id || 'superadmin',
+      fecha:         new Date().toISOString(),
+      usado:         false,
+    });
+    const link = `${window.location.origin}/tutaxi/app/webapp.html`;
+    _mostrarModalInvitacion(emailLower, company?.nombre || companyId, link);
+    toast(`Invitación creada para ${emailLower}`, 'success');
+  }
   await cargarCompanies();
 }
 
@@ -1459,6 +1552,59 @@ async function asignarCompaniaChofer(uid) {
   await DB.updateUser(uid, { companyId: companies[idx].id });
   toast(`Conductor asignado a "${companies[idx].nombre}" ✅`, 'success');
   await refreshAll();
+}
+
+
+// ── INVITACIONES ─────────────────────────────────────────────────────────────
+async function cargarInvitaciones() {
+  const invs = await DB.getInvitaciones();
+  const wrap = document.getElementById('invitaciones-table');
+  if (!wrap) return;
+
+  // Update badge
+  const pending = invs.filter(i => !i.usado);
+  const badge = document.getElementById('badge-invitaciones');
+  if (badge) { badge.textContent = pending.length; badge.style.display = pending.length ? 'inline-block' : 'none'; }
+
+  if (!invs.length) {
+    wrap.innerHTML = '<div class="empty"><div class="empty-icon">✉️</div><div class="empty-title">Sin invitaciones pendientes</div></div>';
+    return;
+  }
+
+  wrap.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Email</th><th>Compañía</th><th>Rol</th><th>Creada</th><th>Estado</th><th>Acciones</th></tr></thead>
+    <tbody>
+    ${invs.map(inv => {
+      const fecha = inv.fecha ? new Date(inv.fecha).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+      const estPill = inv.usado
+        ? '<span class="badge badge-completado">✓ Usada</span>'
+        : '<span class="badge badge-pendiente">⏳ Pendiente</span>';
+      return `<tr>
+        <td>${inv.email}</td>
+        <td>${inv.companyNombre || inv.companyId || '—'}</td>
+        <td><span class="badge badge-chofer">${inv.rol || 'admin'}</span></td>
+        <td style="font-size:.78rem;color:var(--gray3);">${fecha}</td>
+        <td>${estPill}</td>
+        <td>
+          ${!inv.usado ? `
+          <button class="btn btn-sm btn-info" onclick="_reenviarInvitacion('${inv.email}','${inv.companyNombre||''}')">Reenviar</button>
+          <button class="btn btn-sm btn-danger" style="margin-left:.3rem;" onclick="cancelarInvitacion('${inv.email}')">Cancelar</button>` : '—'}
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+function _reenviarInvitacion(email, companyNombre) {
+  const link = `${window.location.origin}/tutaxi/app/webapp.html`;
+  _mostrarModalInvitacion(email, companyNombre, link);
+}
+
+async function cancelarInvitacion(email) {
+  if (!confirm(`¿Cancelar la invitación para ${email}?`)) return;
+  await DB.deleteInvitacion(email);
+  toast('Invitación cancelada', 'error');
+  await cargarInvitaciones();
 }
 
 setInterval(() => { if (adminLoggedIn) refreshAll(); }, 10000);
