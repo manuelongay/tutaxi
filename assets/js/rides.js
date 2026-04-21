@@ -393,6 +393,7 @@ async function aceptarViaje(id) {
     chofFoto: me.foto || null,
     chofRating: me.ratingProm || null, chofRatingCount: me.ratingCount || 0,
     tsAceptado: Date.now(), tsEnCamino: Date.now(),
+    companyId: me.companyId || null,
   });
   const rides = await DB.rides();
   const ride  = rides.find(r => r.id === id);
