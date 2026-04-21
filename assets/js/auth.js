@@ -28,6 +28,7 @@ async function doRegister() {
       fecha: new Date().toISOString(),
       fechaRegistro: new Date().toISOString(),
       provider: 'email',
+      companyId: null,  // se asigna por el admin para choferes
     };
 
     if (rol === 'chofer') {
