@@ -184,4 +184,39 @@ const DB = {
     ref.on('value', snap => cb(snap.exists() ? snap.val() : {}));
     return () => ref.off('value');
   },
+
+  // ── Compañías ─────────────────────────────────────
+  saveCompany: (company) =>
+    firebase.database().ref(`companies/${company.id}`).set(company),
+
+  getCompanies: async () => {
+    const snap = await firebase.database().ref('companies').get();
+    return snap.exists() ? Object.values(snap.val()) : [];
+  },
+
+  getCompany: async (id) => {
+    const snap = await firebase.database().ref(`companies/${id}`).get();
+    return snap.exists() ? snap.val() : null;
+  },
+
+  updateCompany: (id, data) =>
+    firebase.database().ref(`companies/${id}`).update(data),
+
+  onCompanies: (cb) => {
+    const ref = firebase.database().ref('companies');
+    ref.on('value', snap => cb(snap.exists() ? Object.values(snap.val()) : []));
+    return () => ref.off('value');
+  },
+
+  // Tarifas por compañía (fallback a globales)
+  getTarifasCompany: async (companyId) => {
+    const snap = await firebase.database().ref(`config/tarifas_${companyId}`).get();
+    if (snap.exists()) return snap.val();
+    const snap2 = await firebase.database().ref('config/tarifas').get();
+    return snap2.exists() ? snap2.val()
+      : { porKm:9, minima:30, kmIncluidos:3, nocturna:1.3, horaInicio:22, horaFin:6, espera:1, esperaActiva:false, radioKm:3 };
+  },
+
+  saveTarifasCompany: (companyId, tarifas) =>
+    firebase.database().ref(`config/tarifas_${companyId}`).set(tarifas),
 };
