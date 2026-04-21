@@ -504,12 +504,12 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label">Usuario administrador</label>
-      <input type="text" class="form-input" id="admin-user" placeholder="admin" value="admin">
+      <label class="form-label">Email de administrador</label>
+      <input type="text" class="form-input" id="admin-user" placeholder="admin@tutaxi.com" type="email">
     </div>
     <div class="form-group">
       <label class="form-label">Contraseña</label>
-      <input type="password" class="form-input" id="admin-pass" placeholder="••••••••" value="admin123">
+      <input type="password" class="form-input" id="admin-pass" placeholder="••••••••">
     </div>
 
     <button class="btn btn-primary btn-full" onclick="adminLogin()">Acceder al panel</button>
@@ -555,14 +555,17 @@
       <div class="nav-icon">📄</div> Documentos
       <span class="nav-badge" id="badge-docs" style="display:none;">0</span>
     </div>
+    <div class="nav-item" id="nav-companies" style="display:none;" onclick="showView('companies');cargarCompanies()">
+      <div class="nav-icon">🏢</div> Compañías
+    </div>
   </nav>
 
   <div class="sidebar-footer">
     <div class="admin-info">
       <div class="admin-avatar">A</div>
       <div>
-        <div class="admin-name">Administrador</div>
-        <div class="admin-role">Super Admin</div>
+        <div class="admin-name" id="admin-name-display">Administrador</div>
+        <div class="admin-role" id="admin-role-display">Admin</div>
       </div>
     </div>
     <button class="btn-logout" onclick="adminLogout()">Cerrar sesión</button>
@@ -732,6 +735,29 @@
       </div>
     </div>
 
+    <!-- COMPAÑÍAS (solo superadmin) -->
+    <div id="view-companies" class="view">
+      <div class="section-header">
+        <h2>Compañías</h2>
+        <p>Gestiona las empresas de taxi registradas en la plataforma</p>
+      </div>
+      <div style="margin-bottom:1rem;">
+        <button class="btn btn-success btn-sm" onclick="mostrarFormCompany()">+ Nueva compañía</button>
+      </div>
+      <div id="companies-table"></div>
+      <div id="form-company" style="display:none;" class="table-wrap" style="padding:1.5rem;margin-top:1rem;">
+        <div style="padding:1.5rem;">
+          <div class="table-title" style="margin-bottom:1rem;">Nueva compañía</div>
+          <div class="form-group"><label class="form-label">Nombre</label><input type="text" class="form-input" id="comp-nombre" placeholder="Taxi Campeche S.A."></div>
+          <div class="form-group"><label class="form-label">Email del administrador</label><input type="email" class="form-input" id="comp-admin-email" placeholder="admin@empresa.com"></div>
+          <div style="display:flex;gap:.6rem;margin-top:1rem;">
+            <button class="btn btn-success" onclick="crearCompany()">Crear compañía</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('form-company').style.display='none'">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -754,13 +780,10 @@
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
-// ─── ADMIN CREDENTIALS ────────────────────────────────────────────────────────
-const ADMIN = { user: 'admin', pass: 'admin123' };
-
-// ─── DB HELPERS ───────────────────────────────────────────────────────────────
-// Firebase config
+// ─── FIREBASE INIT ────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey:            "AIzaSyBT48rx-jST_-Tsm65XQ-iwZMLnzVhX_FE",
   authDomain:        "tutaxi-f8e7e.firebaseapp.com",
@@ -771,18 +794,14 @@ const firebaseConfig = {
   appId:             "1:710035138200:web:1c4ed6292b63e5f4c752ed"
 };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const _db = firebase.database();
+const _db  = firebase.database();
+const _auth = firebase.auth();
 
-// DB helpers — mismas firmas que el original para no romper render functions
+// ─── DB HELPERS ───────────────────────────────────────────────────────────────
 const DB = {
   getUsers: async () => {
     const snap = await _db.ref('users').get();
     return snap.exists() ? Object.values(snap.val()) : [];
-  },
-  saveUsers: async (users) => {
-    const updates = {};
-    users.forEach(u => { updates['users/' + u.id] = u; });
-    return _db.ref().update(updates);
   },
   getRides: async () => {
     const snap = await _db.ref('rides').get();
@@ -799,47 +818,82 @@ const DB = {
   },
   updateDocs: (uid, data) => _db.ref('documentos/' + uid).update(data),
   saveNotif: (n) => _db.ref('notifs/' + n.id).set(n),
+  getCompanies: async () => {
+    const snap = await _db.ref('companies').get();
+    return snap.exists() ? Object.values(snap.val()) : [];
+  },
+  saveCompany: (c) => _db.ref('companies/' + c.id).set(c),
+  updateCompany: (id, data) => _db.ref('companies/' + id).update(data),
 };
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let currentFilter = 'all';
 let currentSearch = '';
 let adminLoggedIn = false;
+let currentAdmin  = null;  // usuario admin logueado
 
 // ─── TIME ─────────────────────────────────────────────────────────────────────
 function updateTime() {
-  const now = new Date();
-  document.getElementById('current-time').textContent = now.toLocaleTimeString('es-MX');
+  document.getElementById('current-time').textContent = new Date().toLocaleTimeString('es-MX');
 }
-
 setInterval(updateTime, 1000);
 updateTime();
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 function adminLogin() {
-  const u = document.getElementById('admin-user').value;
-  const p = document.getElementById('admin-pass').value;
-  if (u === ADMIN.user && p === ADMIN.pass) {
-    document.getElementById('view-login').style.display = 'none';
-    document.getElementById('main-content').style.display = 'flex';
-    adminLoggedIn = true;
-    refreshAll();
-    toast('Bienvenido, Administrador 🛡️', 'success');
-  } else {
-    toast('Credenciales incorrectas', 'error');
-  }
+  const email = document.getElementById('admin-user').value.trim();
+  const pass  = document.getElementById('admin-pass').value;
+  if (!email || !pass) { toast('Ingresa email y contraseña', 'error'); return; }
+
+  _auth.signInWithEmailAndPassword(email, pass)
+    .then(async cred => {
+      const snap = await _db.ref('users/' + cred.user.uid).get();
+      if (!snap.exists()) { _auth.signOut(); toast('Usuario no encontrado', 'error'); return; }
+      const u = snap.val();
+      if (!['admin','superadmin'].includes(u.rol)) {
+        _auth.signOut(); toast('Acceso solo para administradores', 'error'); return;
+      }
+      if (u.estatus === 'bloqueado') {
+        _auth.signOut(); toast('Cuenta bloqueada', 'error'); return;
+      }
+      currentAdmin  = u;
+      adminLoggedIn = true;
+      document.getElementById('view-login').style.display   = 'none';
+      document.getElementById('main-content').style.display = 'flex';
+      // Mostrar nombre y rol en sidebar
+      const nameEl = document.getElementById('admin-name-display');
+      const roleEl = document.getElementById('admin-role-display');
+      if (nameEl) nameEl.textContent = u.nom + ' ' + (u.ape||'');
+      if (roleEl) roleEl.textContent = u.rol === 'superadmin' ? '⭐ Super Admin' : '🔧 Administrador';
+      // Mostrar/ocultar sección de compañías solo para superadmin
+      const compNav = document.getElementById('nav-companies');
+      if (compNav) compNav.style.display = u.rol === 'superadmin' ? 'flex' : 'none';
+      refreshAll();
+      toast('Bienvenido, ' + u.nom + ' 🛡️', 'success');
+    })
+    .catch(err => {
+      const msgs = {
+        'auth/invalid-credential': 'Email o contraseña incorrectos',
+        'auth/user-not-found':     'Usuario no encontrado',
+        'auth/wrong-password':     'Contraseña incorrecta',
+        'auth/too-many-requests':  'Demasiados intentos, espera unos minutos',
+      };
+      toast(msgs[err.code] || 'Error al iniciar sesión: ' + err.code, 'error');
+    });
 }
 
 function adminLogout() {
-  document.getElementById('view-login').style.display = 'flex';
-  document.getElementById('main-content').style.display = 'none';
+  _auth.signOut();
+  currentAdmin  = null;
   adminLoggedIn = false;
+  document.getElementById('view-login').style.display   = 'flex';
+  document.getElementById('main-content').style.display = 'none';
 }
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 const viewTitles = {
   dashboard: 'Dashboard', users: 'Usuarios', passengers: 'Pasajeros',
-  drivers: 'Choferes', rides: 'Viajes', documentos: 'Documentos',
+  drivers: 'Choferes', rides: 'Viajes', documentos: 'Documentos', companies: 'Compañías',
 };
 
 function showView(name) {
@@ -858,8 +912,13 @@ function showView(name) {
 
 // ─── REFRESH ──────────────────────────────────────────────────────────────────
 async function refreshAll() {
-  const users = await DB.getUsers();
-  const rides = await DB.getRides();
+  let users = await DB.getUsers();
+  let rides = await DB.getRides();
+  // Admin solo ve su compañía; superadmin ve todo
+  if (currentAdmin && currentAdmin.rol === 'admin' && currentAdmin.companyId) {
+    users = users.filter(u => u.companyId === currentAdmin.companyId || u.rol === 'pasajero');
+    rides = rides.filter(r => r.companyId === currentAdmin.companyId);
+  }
   const choferes = users.filter(u => u.rol === 'chofer');
   const pasajeros = users.filter(u => u.rol === 'pasajero');
 
@@ -1296,6 +1355,110 @@ async function solicitarRenovacion(uid, key, label) {
   await DB.saveNotif({ id: 'n_doc_ren_' + Date.now(), pasId: uid, msg: `🔄 El admin solicita que actualices tu ${label}.`, leida: false, fecha: new Date().toISOString() });
   toast('Renovación solicitada', 'success');
   await cargarDocumentos();
+}
+
+
+// ── COMPAÑÍAS ────────────────────────────────────────────────────────────────
+async function cargarCompanies() {
+  const [companies, users] = await Promise.all([DB.getCompanies(), DB.getUsers()]);
+  const wrap = document.getElementById('companies-table');
+  if (!wrap) return;
+
+  if (!companies.length) {
+    wrap.innerHTML = '<div class="empty"><div class="empty-icon">🏢</div><div class="empty-title">Sin compañías registradas</div></div>';
+    return;
+  }
+
+  wrap.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Nombre</th><th>Admin</th><th>Conductores</th><th>Estado</th><th>Acciones</th></tr></thead>
+    <tbody>
+    ${companies.map(c => {
+      const admin    = users.find(u => u.id === c.adminUid);
+      const drivers  = users.filter(u => u.rol === 'chofer' && u.companyId === c.id).length;
+      const estPill  = c.activo !== false
+        ? '<span class="badge badge-activo">● Activo</span>'
+        : '<span class="badge badge-bloqueado">✕ Inactivo</span>';
+      return `<tr>
+        <td><strong>${c.nombre}</strong></td>
+        <td style="font-size:.83rem;color:var(--gray3);">${admin ? (admin.nom+' '+admin.ape) : '—'}<br><span style="font-size:.72rem;">${admin?.email||'—'}</span></td>
+        <td>${drivers}</td>
+        <td>${estPill}</td>
+        <td>
+          <button class="btn btn-sm btn-info" onclick="gestionarAdminCompany('${c.id}')">Gestionar admin</button>
+          ${c.activo !== false
+            ? `<button class="btn btn-sm btn-danger" style="margin-left:.3rem;" onclick="toggleCompany('${c.id}',false)">Desactivar</button>`
+            : `<button class="btn btn-sm btn-success" style="margin-left:.3rem;" onclick="toggleCompany('${c.id}',true)">Activar</button>`}
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
+function mostrarFormCompany() {
+  document.getElementById('form-company').style.display = 'block';
+}
+
+async function crearCompany() {
+  const nombre = document.getElementById('comp-nombre').value.trim();
+  const email  = document.getElementById('comp-admin-email').value.trim();
+  if (!nombre) { toast('Ingresa el nombre de la compañía', 'error'); return; }
+
+  const id = 'comp_' + Date.now();
+  const company = { id, nombre, activo: true, fechaCreacion: new Date().toISOString(), adminUid: null };
+
+  await DB.saveCompany(company);
+
+  // Si se proporcionó email de admin, buscar ese usuario y asignarle la compañía
+  if (email) {
+    const users = await DB.getUsers();
+    const adminUser = users.find(u => u.email === email);
+    if (adminUser) {
+      await DB.updateUser(adminUser.id, { companyId: id, rol: 'admin' });
+      await DB.updateCompany(id, { adminUid: adminUser.id });
+      toast(`Compañía "${nombre}" creada y admin asignado ✅`, 'success');
+    } else {
+      toast(`Compañía "${nombre}" creada. Email de admin no encontrado — asígnalo manualmente.`, 'success');
+    }
+  } else {
+    toast(`Compañía "${nombre}" creada ✅`, 'success');
+  }
+
+  document.getElementById('comp-nombre').value = '';
+  document.getElementById('comp-admin-email').value = '';
+  document.getElementById('form-company').style.display = 'none';
+  await cargarCompanies();
+}
+
+async function toggleCompany(id, activo) {
+  await DB.updateCompany(id, { activo });
+  toast(activo ? 'Compañía activada' : 'Compañía desactivada', activo ? 'success' : 'error');
+  await cargarCompanies();
+}
+
+async function gestionarAdminCompany(companyId) {
+  const email = prompt('Email del nuevo administrador de esta compañía:');
+  if (!email) return;
+  const users = await DB.getUsers();
+  const u = users.find(u => u.email === email.trim().toLowerCase());
+  if (!u) { toast('Usuario no encontrado', 'error'); return; }
+  await DB.updateUser(u.id, { companyId, rol: 'admin' });
+  await DB.updateCompany(companyId, { adminUid: u.id });
+  toast('Admin asignado correctamente ✅', 'success');
+  await cargarCompanies();
+}
+
+// Asignar conductor a compañía
+async function asignarCompaniaChofer(uid) {
+  const companies = await DB.getCompanies();
+  if (!companies.length) { toast('No hay compañías registradas', 'error'); return; }
+  const opts = companies.map((c,i) => `${i+1}. ${c.nombre}`).join('\n');
+  const sel = prompt(`Selecciona compañía para el conductor:\n${opts}\n\nIngresa el número:`);
+  if (!sel) return;
+  const idx = parseInt(sel) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= companies.length) { toast('Opción inválida', 'error'); return; }
+  await DB.updateUser(uid, { companyId: companies[idx].id });
+  toast(`Conductor asignado a "${companies[idx].nombre}" ✅`, 'success');
+  await refreshAll();
 }
 
 setInterval(() => { if (adminLoggedIn) refreshAll(); }, 10000);
