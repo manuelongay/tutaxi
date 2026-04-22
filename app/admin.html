@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>tuTaxi Admin — Panel de Control</title>
+<title>TuTaxi Admin — Panel de Control</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -499,7 +499,7 @@
 <div id="view-login">
   <div class="login-card">
     <div style="text-align:center; margin-bottom:2rem;">
-      <div style="font-family:'Syne',sans-serif; font-size:2rem; font-weight:800;">tu<span style="color:var(--accent)">Taxi</span></div>
+      <div style="font-family:'Syne',sans-serif; font-size:2rem; font-weight:800;">Tu<span style="color:var(--accent)">Taxi</span></div>
       <div style="font-size:0.75rem; color:var(--gray3); text-transform:uppercase; letter-spacing:2px; margin-top:0.3rem;">Panel de Administración</div>
     </div>
 
@@ -594,7 +594,7 @@
     <div id="view-dashboard" class="view active">
       <div class="section-header">
         <h2>Resumen general</h2>
-        <p>Estado actual de la plataforma tuTaxi</p>
+        <p>Estado actual de la plataforma TuTaxi</p>
       </div>
 
       <div class="stats-grid">
@@ -837,6 +837,25 @@ const DB = {
   },
   saveCompany: (c) => _db.ref('companies/' + c.id).set(c),
   updateCompany: (id, data) => _db.ref('companies/' + id).update(data),
+
+  // ── Invitaciones ────────────────────────────────
+  saveInvitacion: (inv) => {
+    const key = inv.email.replace(/\./g, ',');
+    return _db.ref('invitaciones/' + key).set(inv);
+  },
+  getInvitacion: async (email) => {
+    const key = email.replace(/\./g, ',');
+    const snap = await _db.ref('invitaciones/' + key).get();
+    return snap.exists() ? snap.val() : null;
+  },
+  deleteInvitacion: (email) => {
+    const key = email.replace(/\./g, ',');
+    return _db.ref('invitaciones/' + key).remove();
+  },
+  getInvitaciones: async () => {
+    const snap = await _db.ref('invitaciones').get();
+    return snap.exists() ? Object.values(snap.val()) : [];
+  },
 };
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -1474,7 +1493,7 @@ function _mostrarModalInvitacion(email, companyNombre, link) {
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1.5rem;';
 
   const waMensaje = encodeURIComponent(
-    `Hola, has sido invitado como administrador de la compañía "${companyNombre}" en tuTaxi.
+    `Hola, has sido invitado como administrador de la compañía "${companyNombre}" en TuTaxi.
 
 ` +
     `Regístrate en este link con el email: ${email}
