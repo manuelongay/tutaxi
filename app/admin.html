@@ -499,7 +499,7 @@
 <div id="view-login">
   <div class="login-card">
     <div style="text-align:center; margin-bottom:2rem;">
-      <div style="font-family:'Syne',sans-serif; font-size:2rem; font-weight:800;">Ride<span style="color:var(--accent)">Go</span></div>
+      <div style="font-family:'Syne',sans-serif; font-size:2rem; font-weight:800;">tu<span style="color:var(--accent)">Taxi</span></div>
       <div style="font-size:0.75rem; color:var(--gray3); text-transform:uppercase; letter-spacing:2px; margin-top:0.3rem;">Panel de Administración</div>
     </div>
 
@@ -515,7 +515,7 @@
     <button class="btn btn-primary btn-full" onclick="adminLogin()">Acceder al panel</button>
 
     <p style="text-align:center; margin-top:1rem; font-size:0.78rem; color:var(--gray3);">
-      Credenciales por defecto: <strong style="color:var(--accent);">admin / admin123</strong>
+      Ingresa tu email y contraseña de administrador
     </p>
   </div>
 </div>
@@ -1023,6 +1023,10 @@ function renderAllUsers(users) {
   const el = document.getElementById('all-users-table');
   if (!el) return;
   let filtered = users;
+  // Admin solo ve pasajeros y sus propios choferes — no ve otros admins/superadmins
+  if (currentAdmin && currentAdmin.rol === 'admin') {
+    filtered = filtered.filter(u => u.rol === 'pasajero' || (u.rol === 'chofer' && u.companyId === currentAdmin.companyId));
+  }
   if (usersFilter !== 'all') filtered = filtered.filter(u => u.estatus === usersFilter);
   if (usersSearch) {
     const q = usersSearch.toLowerCase();
@@ -1102,26 +1106,30 @@ function renderDrivers(drivers) {
   let filtered = drivers;
   if (driversFilter !== 'all') filtered = filtered.filter(u => (u.estatus||'activo') === driversFilter);
   if (filtered.length === 0) { el.innerHTML = emptyRow('Sin choferes registrados'); return; }
+  const esSuperAdmin = currentAdmin && currentAdmin.rol === 'superadmin';
   el.innerHTML = `
     <table>
-      <thead><tr><th>Nombre</th><th>Correo</th><th>Vehículo</th><th>Placas</th><th>Est. cuenta</th><th>Est. chofer</th><th>Acciones</th></tr></thead>
-      <tbody>${filtered.map(u => `
-        <tr>
-          <td><strong>${u.nom||u.nombre||""} ${u.ape||u.apellido||''}</strong></td>
-          <td style="color:var(--gray3); font-size:0.82rem;">${u.email}</td>
-          <td>${u.veh||(u.veh||u.vehiculo||'—')}</td>
-          <td><code style="background:var(--gray2);padding:0.1rem 0.4rem;border-radius:6px;font-size:0.82rem;">${u.pla||(u.pla||u.placas||'—')}</code></td>
+      <thead><tr><th>Nombre</th><th>Correo</th><th>Vehículo</th><th>Placas</th>${esSuperAdmin ? '<th>Compañía</th>' : ''}<th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody>${filtered.map(u => {
+        const compNom = esSuperAdmin ? (u.companyId || '—') : '';
+        return `<tr>
+          <td><strong>${u.nom||u.nombre||''} ${u.ape||u.apellido||''}</strong></td>
+          <td style="color:var(--gray3);font-size:.82rem;">${u.email}</td>
+          <td>${u.veh||u.vehiculo||'—'}</td>
+          <td><code style="background:var(--gray2);padding:.1rem .4rem;border-radius:6px;font-size:.82rem;">${u.pla||u.placas||'—'}</code></td>
+          ${esSuperAdmin ? `<td style="font-size:.78rem;color:var(--gray3);">${compNom}</td>` : ''}
           <td>${estatusBadge(u.estatus)}</td>
-          <td>${estatusBadge(u.estatus||'activo')}</td>
           <td>
-            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
               <button class="btn btn-sm btn-info" onclick="openUserModal('${u.id}')">Ver</button>
               ${(u.estatus||'activo') === 'activo'
-                ? `<button class="btn btn-sm btn-danger" onclick="toggleDriverStatus('${u.id}','bloqueado')">Bloquear</button>`
-                : `<button class="btn btn-sm btn-success" onclick="toggleDriverStatus('${u.id}','activo')">Activar</button>`}
+                ? `<button class="btn btn-sm btn-danger" onclick="toggleUserStatus('${u.id}','bloqueado')">Bloquear</button>`
+                : `<button class="btn btn-sm btn-success" onclick="toggleUserStatus('${u.id}','activo')">Activar</button>`}
+              ${esSuperAdmin ? `<button class="btn btn-sm btn-ghost" style="font-size:.7rem;" onclick="asignarCompaniaChofer('${u.id}')">🏢</button>` : ''}
             </div>
           </td>
-        </tr>`).join('')}
+        </tr>`;
+      }).join('')}
       </tbody>
     </table>`;
 }
@@ -1608,6 +1616,32 @@ async function cancelarInvitacion(email) {
 }
 
 setInterval(() => { if (adminLoggedIn) refreshAll(); }, 10000);
+
+// Restaurar sesión si el admin recarga la página
+_auth.onAuthStateChanged(async firebaseUser => {
+  if (firebaseUser && !adminLoggedIn) {
+    try {
+      const snap = await _db.ref('users/' + firebaseUser.uid).get();
+      if (!snap.exists()) return;
+      const u = snap.val();
+      if (!['admin','superadmin'].includes(u.rol)) return;
+      if (u.estatus === 'bloqueado') return;
+      currentAdmin  = u;
+      adminLoggedIn = true;
+      document.getElementById('view-login').style.display   = 'none';
+      document.getElementById('main-content').style.display = 'flex';
+      const nameEl = document.getElementById('admin-name-display');
+      const roleEl = document.getElementById('admin-role-display');
+      if (nameEl) nameEl.textContent = u.nom + ' ' + (u.ape||'');
+      if (roleEl) roleEl.textContent = u.rol === 'superadmin' ? '⭐ Super Admin' : '🔧 Administrador';
+      const compNav = document.getElementById('nav-companies');
+      const invNav  = document.getElementById('nav-invitaciones');
+      if (compNav) compNav.style.display = u.rol === 'superadmin' ? 'flex' : 'none';
+      if (invNav)  invNav.style.display  = u.rol === 'superadmin' ? 'flex' : 'none';
+      refreshAll();
+    } catch(e) { console.error('Session restore error:', e); }
+  }
+});
 </script>
 </body>
 </html>
