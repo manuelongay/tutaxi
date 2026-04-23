@@ -1411,25 +1411,43 @@ async function cargarCompanies() {
     return;
   }
 
+  // Obtener invitaciones pendientes para mostrar emails invitados
+  const invitaciones = await DB.getInvitaciones().catch(() => []);
+
   wrap.innerHTML = `<div class="table-wrap"><table>
     <thead><tr><th>Nombre</th><th>Admin</th><th>Conductores</th><th>Estado</th><th>Acciones</th></tr></thead>
     <tbody>
     ${companies.map(c => {
       const admin    = users.find(u => u.id === c.adminUid);
       const drivers  = users.filter(u => u.rol === 'chofer' && u.companyId === c.id).length;
+      const invPend  = invitaciones.find(i => i.companyId === c.id && !i.usado);
       const estPill  = c.activo !== false
         ? '<span class="badge badge-activo">● Activo</span>'
         : '<span class="badge badge-bloqueado">✕ Inactivo</span>';
+
+      // Admin info: si tiene admin asignado lo muestra, si no muestra invitación pendiente
+      let adminInfo;
+      if (admin) {
+        adminInfo = `${admin.nom||''} ${admin.ape||''}<br><span style="font-size:.72rem;">${admin.email||''}</span>`;
+      } else if (invPend) {
+        adminInfo = `<span style="color:var(--accent);font-size:.78rem;">⏳ Invitación pendiente</span><br><span style="font-size:.72rem;">${invPend.email}</span>`;
+      } else {
+        adminInfo = '<span style="color:var(--gray3);font-size:.78rem;">Sin admin asignado</span>';
+      }
+
       return `<tr>
-        <td><strong>${c.nombre}</strong></td>
-        <td style="font-size:.83rem;color:var(--gray3);">${admin ? (admin.nom+' '+admin.ape) : '—'}<br><span style="font-size:.72rem;">${admin?.email||'—'}</span></td>
+        <td><strong>${c.nombre}</strong><br><span style="font-size:.72rem;color:var(--gray3);">${c.id}</span></td>
+        <td style="font-size:.83rem;">${adminInfo}</td>
         <td>${drivers}</td>
         <td>${estPill}</td>
         <td>
-          <button class="btn btn-sm btn-info" onclick="gestionarAdminCompany('${c.id}')">Gestionar admin</button>
-          ${c.activo !== false
-            ? `<button class="btn btn-sm btn-danger" style="margin-left:.3rem;" onclick="toggleCompany('${c.id}',false)">Desactivar</button>`
-            : `<button class="btn btn-sm btn-success" style="margin-left:.3rem;" onclick="toggleCompany('${c.id}',true)">Activar</button>`}
+          <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-info" onclick="nuevoAdminCompany('${c.id}','${c.nombre.replace(/'/g,'')}')">+ Nuevo admin</button>
+            ${c.activo !== false
+              ? `<button class="btn btn-sm btn-danger" onclick="toggleCompany('${c.id}',false)">Desactivar</button>`
+              : `<button class="btn btn-sm btn-success" onclick="toggleCompany('${c.id}',true)">Activar</button>`}
+            <button class="btn btn-sm btn-ghost" onclick="eliminarCompany('${c.id}','${c.nombre.replace(/'/g,'')}',${drivers})">🗑️</button>
+          </div>
         </td>
       </tr>`;
     }).join('')}
@@ -1539,31 +1557,81 @@ async function toggleCompany(id, activo) {
 
 async function gestionarAdminCompany(companyId) {
   const company = (await DB.getCompanies()).find(c => c.id === companyId);
-  const email = prompt(`Email del nuevo administrador para "${company?.nombre || companyId}":
-(Si el usuario ya existe se asigna directo, si no se crea una invitación)`);
-  if (!email) return;
-  const emailLower = email.trim().toLowerCase();
+  nuevoAdminCompany(companyId, company ? company.nombre : companyId);
+}
 
-  const users = await DB.getUsers();
-  const existente = users.find(u => u.email === emailLower);
-  if (existente) {
-    await DB.updateUser(existente.id, { companyId, rol: 'admin' });
-    await DB.updateCompany(companyId, { adminUid: existente.id });
-    toast('Admin asignado correctamente ✅', 'success');
-  } else {
-    await DB.saveInvitacion({
-      email: emailLower,
-      rol:           'admin',
-      companyId,
-      companyNombre: company?.nombre || '',
-      creadoPor:     currentAdmin?.id || 'superadmin',
-      fecha:         new Date().toISOString(),
-      usado:         false,
-    });
-    const link = `${window.location.origin}/tutaxi/app/webapp.html`;
-    _mostrarModalInvitacion(emailLower, company?.nombre || companyId, link);
-    toast(`Invitación creada para ${emailLower}`, 'success');
+async function nuevoAdminCompany(companyId, companyNombre) {
+  const prev = document.getElementById('modal-nuevo-admin');
+  if (prev) prev.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-nuevo-admin';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1.5rem;';
+  modal.innerHTML =
+    '<div style="background:#1a1a2e;border-radius:16px;width:100%;max-width:400px;padding:1.8rem;border:1px solid rgba(255,255,255,.1);">' +
+    '<div style="font-size:1rem;font-weight:700;margin-bottom:.3rem;">Nuevo administrador</div>' +
+    '<div style="font-size:.82rem;color:rgba(255,255,255,.5);margin-bottom:1.2rem;">Compañía: <strong>' + companyNombre + '</strong></div>' +
+    '<div class="form-group"><label class="form-label">Email del administrador</label>' +
+    '<input type="email" class="form-input" id="nuevo-admin-email" placeholder="admin@empresa.com"></div>' +
+    '<div style="font-size:.75rem;color:rgba(255,255,255,.4);margin-bottom:1rem;">Si el usuario ya existe se asigna directamente.<br>Si no existe, se creará una invitación.</div>' +
+    '<div style="display:flex;gap:.6rem;">' +
+    '<button id="btn-confirmar-admin" style="flex:2;background:#f5c518;color:#000;border:none;border-radius:10px;padding:.75rem;font-weight:700;cursor:pointer;">Asignar / Invitar</button>' +
+    '<button onclick="document.getElementById('modal-nuevo-admin').remove()" style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:.75rem;cursor:pointer;">Cancelar</button>' +
+    '</div></div>';
+  document.body.appendChild(modal);
+
+  document.getElementById('btn-confirmar-admin').onclick = async () => {
+    const emailInput = document.getElementById('nuevo-admin-email');
+    const emailLower = emailInput ? emailInput.value.trim().toLowerCase() : '';
+    if (!emailLower) { toast('Ingresa un email', 'error'); return; }
+    modal.remove();
+
+    const users = await DB.getUsers();
+    const existente = users.find(function(u){ return u.email === emailLower; });
+
+    if (existente) {
+      await DB.updateUser(existente.id, { companyId: companyId, rol: 'admin' });
+      await DB.updateCompany(companyId, { adminUid: existente.id });
+      toast('Admin asignado correctamente', 'success');
+    } else {
+      await DB.saveInvitacion({
+        email: emailLower, rol: 'admin', companyId: companyId,
+        companyNombre: companyNombre,
+        creadoPor: currentAdmin ? currentAdmin.id : 'superadmin',
+        fecha: new Date().toISOString(), usado: false,
+      });
+      const link = window.location.origin + '/tutaxi/app/webapp.html';
+      _mostrarModalInvitacion(emailLower, companyNombre, link);
+      toast('Invitación creada para ' + emailLower, 'success');
+    }
+    await cargarCompanies();
+  };
+
+  setTimeout(function(){ const el = document.getElementById('nuevo-admin-email'); if(el) el.focus(); }, 100);
+}
+
+async function eliminarCompany(companyId, companyNombre, driverCount) {
+  // Solo eliminar si no tiene conductores (como proxy de no tener viajes)
+  if (driverCount > 0) {
+    toast(`No se puede eliminar "${companyNombre}" — tiene ${driverCount} conductor(es) asignado(s)`, 'error');
+    return;
   }
+  // Verificar si tiene viajes
+  const rides = await DB.getRides();
+  const tieneViajes = rides.some(r => r.companyId === companyId);
+  if (tieneViajes) {
+    toast(`No se puede eliminar "${companyNombre}" — tiene viajes registrados`, 'error');
+    return;
+  }
+  if (!confirm(`¿Eliminar la compañía "${companyNombre}"? Esta acción no se puede deshacer.`)) return;
+
+  await _db.ref('companies/' + companyId).remove();
+  // Cancelar invitaciones pendientes de esta compañía
+  const invs = await DB.getInvitaciones();
+  for (const inv of invs.filter(i => i.companyId === companyId)) {
+    await DB.deleteInvitacion(inv.email);
+  }
+  toast(`Compañía "${companyNombre}" eliminada`, 'error');
   await cargarCompanies();
 }
 
