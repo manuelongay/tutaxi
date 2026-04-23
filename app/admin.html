@@ -1406,52 +1406,54 @@ async function cargarCompanies() {
   const wrap = document.getElementById('companies-table');
   if (!wrap) return;
 
+  const invitaciones = await DB.getInvitaciones().catch(function(){ return []; });
+
   if (!companies.length) {
-    wrap.innerHTML = '<div class="empty"><div class="empty-icon">🏢</div><div class="empty-title">Sin compañías registradas</div></div>';
+    wrap.innerHTML = '<div class="empty"><div class="empty-icon">&#127970;</div><div class="empty-title">Sin compañías registradas</div></div>';
     return;
   }
 
-  // Obtener invitaciones pendientes para mostrar emails invitados
-  const invitaciones = await DB.getInvitaciones().catch(() => []);
+  let rows = '';
+  companies.forEach(function(c) {
+    const admin   = users.find(function(u){ return u.id === c.adminUid; });
+    const drivers = users.filter(function(u){ return u.rol === 'chofer' && u.companyId === c.id; }).length;
+    const invPend = invitaciones.find(function(i){ return i.companyId === c.id && !i.usado; });
 
-  wrap.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>Nombre</th><th>Admin</th><th>Conductores</th><th>Estado</th><th>Acciones</th></tr></thead>
-    <tbody>
-    ${companies.map(c => {
-      const admin    = users.find(u => u.id === c.adminUid);
-      const drivers  = users.filter(u => u.rol === 'chofer' && u.companyId === c.id).length;
-      const invPend  = invitaciones.find(i => i.companyId === c.id && !i.usado);
-      const estPill  = c.activo !== false
-        ? '<span class="badge badge-activo">● Activo</span>'
-        : '<span class="badge badge-bloqueado">✕ Inactivo</span>';
+    const estPill = c.activo !== false
+      ? '<span class="badge badge-activo">&#9679; Activo</span>'
+      : '<span class="badge badge-bloqueado">&#10005; Inactivo</span>';
 
-      // Admin info: si tiene admin asignado lo muestra, si no muestra invitación pendiente
-      let adminInfo;
-      if (admin) {
-        adminInfo = `${admin.nom||''} ${admin.ape||''}<br><span style="font-size:.72rem;">${admin.email||''}</span>`;
-      } else if (invPend) {
-        adminInfo = `<span style="color:var(--accent);font-size:.78rem;">⏳ Invitación pendiente</span><br><span style="font-size:.72rem;">${invPend.email}</span>`;
-      } else {
-        adminInfo = '<span style="color:var(--gray3);font-size:.78rem;">Sin admin asignado</span>';
-      }
+    let adminInfo;
+    if (admin) {
+      adminInfo = '<strong>' + (admin.nom||'') + ' ' + (admin.ape||'') + '</strong><br>'
+        + '<span style="font-size:.72rem;">' + (admin.email||'') + '</span>';
+    } else if (invPend) {
+      adminInfo = '<span style="color:var(--accent);font-size:.78rem;">&#9203; Invitación pendiente</span><br>'
+        + '<span style="font-size:.72rem;">' + invPend.email + '</span>';
+    } else {
+      adminInfo = '<span style="color:var(--gray3);font-size:.78rem;">Sin admin asignado</span>';
+    }
 
-      return `<tr>
-        <td><strong>${c.nombre}</strong><br><span style="font-size:.72rem;color:var(--gray3);">${c.id}</span></td>
-        <td style="font-size:.83rem;">${adminInfo}</td>
-        <td>${drivers}</td>
-        <td>${estPill}</td>
-        <td>
-          <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
-            <button class="btn btn-sm btn-info" onclick="nuevoAdminCompany('${c.id}','${c.nombre.replace(/'/g,'')}')">+ Nuevo admin</button>
-            ${c.activo !== false
-              ? `<button class="btn btn-sm btn-danger" onclick="toggleCompany('${c.id}',false)">Desactivar</button>`
-              : `<button class="btn btn-sm btn-success" onclick="toggleCompany('${c.id}',true)">Activar</button>`}
-            <button class="btn btn-sm btn-ghost" onclick="eliminarCompany('${c.id}','${c.nombre.replace(/'/g,'')}',${drivers})">🗑️</button>
-          </div>
-        </td>
-      </tr>`;
-    }).join('')}
-    </tbody></table></div>`;
+    const toggleBtn = c.activo !== false
+      ? '<button class="btn btn-sm btn-danger" onclick="toggleCompany('' + c.id + '',false)">Desactivar</button>'
+      : '<button class="btn btn-sm btn-success" onclick="toggleCompany('' + c.id + '',true)">Activar</button>';
+
+    rows += '<tr>'
+      + '<td><strong>' + c.nombre + '</strong><br><span style="font-size:.72rem;color:var(--gray3);">' + c.id + '</span></td>'
+      + '<td style="font-size:.83rem;">' + adminInfo + '</td>'
+      + '<td>' + drivers + '</td>'
+      + '<td>' + estPill + '</td>'
+      + '<td><div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm btn-info" onclick="nuevoAdminCompany('' + c.id + '','' + c.nombre.replace(/'/g, '') + '')">+ Nuevo admin</button>'
+      + toggleBtn
+      + '<button class="btn btn-sm btn-ghost" onclick="eliminarCompany('' + c.id + '','' + c.nombre.replace(/'/g, '') + '',' + drivers + ')">&#128465;</button>'
+      + '</div></td>'
+      + '</tr>';
+  });
+
+  wrap.innerHTML = '<div class="table-wrap"><table>'
+    + '<thead><tr><th>Nombre</th><th>Admin</th><th>Conductores</th><th>Estado</th><th>Acciones</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div>';
 }
 
 function mostrarFormCompany() {
