@@ -1434,21 +1434,24 @@ async function cargarCompanies() {
       adminInfo = '<span style="color:var(--gray3);font-size:.78rem;">Sin admin asignado</span>';
     }
 
-    const toggleBtn = c.activo !== false
-      ? '<button class="btn btn-sm btn-danger" onclick="toggleCompany('' + c.id + '',false)">Desactivar</button>'
-      : '<button class="btn btn-sm btn-success" onclick="toggleCompany('' + c.id + '',true)">Activar</button>';
+    const cid  = c.id;
+    const cnom = c.nombre.replace(/'/g, '');
+    const activo = c.activo !== false;
+    const toggleBtn = activo
+      ? "<button class='btn btn-sm btn-danger' onclick=\"toggleCompany('" + cid + "',false)\">Desactivar</button>"
+      : "<button class='btn btn-sm btn-success' onclick=\"toggleCompany('" + cid + "',true)\">Activar</button>";
 
-    rows += '<tr>'
-      + '<td><strong>' + c.nombre + '</strong><br><span style="font-size:.72rem;color:var(--gray3);">' + c.id + '</span></td>'
-      + '<td style="font-size:.83rem;">' + adminInfo + '</td>'
-      + '<td>' + drivers + '</td>'
-      + '<td>' + estPill + '</td>'
-      + '<td><div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-sm btn-info" onclick="nuevoAdminCompany('' + c.id + '','' + c.nombre.replace(/'/g, '') + '')">+ Nuevo admin</button>'
+    rows += "<tr>"
+      + "<td><strong>" + c.nombre + "</strong><br><span style='font-size:.72rem;color:var(--gray3);'>" + cid + "</span></td>"
+      + "<td style='font-size:.83rem;'>" + adminInfo + "</td>"
+      + "<td>" + drivers + "</td>"
+      + "<td>" + estPill + "</td>"
+      + "<td><div style='display:flex;gap:.3rem;flex-wrap:wrap;'>"
+      + "<button class='btn btn-sm btn-info' onclick=\"nuevoAdminCompany('" + cid + "','" + cnom + "')\">+ Nuevo admin</button>"
       + toggleBtn
-      + '<button class="btn btn-sm btn-ghost" onclick="eliminarCompany('' + c.id + '','' + c.nombre.replace(/'/g, '') + '',' + drivers + ')">&#128465;</button>'
-      + '</div></td>'
-      + '</tr>';
+      + "<button class='btn btn-sm btn-ghost' onclick=\"eliminarCompany('" + cid + "','" + cnom + "'," + drivers + ")\">&#128465;</button>"
+      + "</div></td>"
+      + "</tr>";
   });
 
   wrap.innerHTML = '<div class="table-wrap"><table>'
