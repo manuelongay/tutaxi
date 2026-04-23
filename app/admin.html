@@ -1566,33 +1566,71 @@ async function gestionarAdminCompany(companyId) {
 }
 
 async function nuevoAdminCompany(companyId, companyNombre) {
-  const prev = document.getElementById('modal-nuevo-admin');
+  var prev = document.getElementById('modal-nuevo-admin');
   if (prev) prev.remove();
 
-  const modal = document.createElement('div');
-  modal.id = 'modal-nuevo-admin';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1.5rem;';
-  modal.innerHTML =
-    '<div style="background:#1a1a2e;border-radius:16px;width:100%;max-width:400px;padding:1.8rem;border:1px solid rgba(255,255,255,.1);">' +
-    '<div style="font-size:1rem;font-weight:700;margin-bottom:.3rem;">Nuevo administrador</div>' +
-    '<div style="font-size:.82rem;color:rgba(255,255,255,.5);margin-bottom:1.2rem;">Compañía: <strong>' + companyNombre + '</strong></div>' +
-    '<div class="form-group"><label class="form-label">Email del administrador</label>' +
-    '<input type="email" class="form-input" id="nuevo-admin-email" placeholder="admin@empresa.com"></div>' +
-    '<div style="font-size:.75rem;color:rgba(255,255,255,.4);margin-bottom:1rem;">Si el usuario ya existe se asigna directamente.<br>Si no existe, se creará una invitación.</div>' +
-    '<div style="display:flex;gap:.6rem;">' +
-    '<button id="btn-confirmar-admin" style="flex:2;background:#f5c518;color:#000;border:none;border-radius:10px;padding:.75rem;font-weight:700;cursor:pointer;">Asignar / Invitar</button>' +
-    '<button onclick="document.getElementById('modal-nuevo-admin').remove()" style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:.75rem;cursor:pointer;">Cancelar</button>' +
-    '</div></div>';
-  document.body.appendChild(modal);
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-nuevo-admin';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1.5rem;';
 
-  document.getElementById('btn-confirmar-admin').onclick = async () => {
-    const emailInput = document.getElementById('nuevo-admin-email');
-    const emailLower = emailInput ? emailInput.value.trim().toLowerCase() : '';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#1a1a2e;border-radius:16px;width:100%;max-width:400px;padding:1.8rem;border:1px solid rgba(255,255,255,.1);';
+
+  var title = document.createElement('div');
+  title.style.cssText = 'font-size:1rem;font-weight:700;margin-bottom:.3rem;';
+  title.textContent = 'Nuevo administrador';
+
+  var sub = document.createElement('div');
+  sub.style.cssText = 'font-size:.82rem;color:rgba(255,255,255,.5);margin-bottom:1.2rem;';
+  sub.innerHTML = 'Compañía: <strong>' + companyNombre + '</strong>';
+
+  var label = document.createElement('label');
+  label.className = 'form-label';
+  label.textContent = 'Email del administrador';
+
+  var input = document.createElement('input');
+  input.type = 'email';
+  input.className = 'form-input';
+  input.id = 'nuevo-admin-email';
+  input.placeholder = 'admin@empresa.com';
+  input.style.marginBottom = '1rem';
+
+  var hint = document.createElement('div');
+  hint.style.cssText = 'font-size:.75rem;color:rgba(255,255,255,.4);margin-bottom:1rem;';
+  hint.innerHTML = 'Si el usuario ya existe se asigna directamente.<br>Si no existe, se creará una invitación.';
+
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:.6rem;';
+
+  var btnOk = document.createElement('button');
+  btnOk.style.cssText = 'flex:2;background:#f5c518;color:#000;border:none;border-radius:10px;padding:.75rem;font-weight:700;cursor:pointer;';
+  btnOk.textContent = 'Asignar / Invitar';
+
+  var btnCancel = document.createElement('button');
+  btnCancel.style.cssText = 'flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:.75rem;cursor:pointer;';
+  btnCancel.textContent = 'Cancelar';
+  btnCancel.onclick = function() { overlay.remove(); };
+
+  btnRow.appendChild(btnOk);
+  btnRow.appendChild(btnCancel);
+  box.appendChild(title);
+  box.appendChild(sub);
+  box.appendChild(label);
+  box.appendChild(input);
+  box.appendChild(hint);
+  box.appendChild(btnRow);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  setTimeout(function() { input.focus(); }, 100);
+
+  btnOk.onclick = async function() {
+    var emailLower = input.value.trim().toLowerCase();
     if (!emailLower) { toast('Ingresa un email', 'error'); return; }
-    modal.remove();
+    overlay.remove();
 
-    const users = await DB.getUsers();
-    const existente = users.find(function(u){ return u.email === emailLower; });
+    var users = await DB.getUsers();
+    var existente = users.find(function(u) { return u.email === emailLower; });
 
     if (existente) {
       await DB.updateUser(existente.id, { companyId: companyId, rol: 'admin' });
@@ -1603,16 +1641,14 @@ async function nuevoAdminCompany(companyId, companyNombre) {
         email: emailLower, rol: 'admin', companyId: companyId,
         companyNombre: companyNombre,
         creadoPor: currentAdmin ? currentAdmin.id : 'superadmin',
-        fecha: new Date().toISOString(), usado: false,
+        fecha: new Date().toISOString(), usado: false
       });
-      const link = window.location.origin + '/tutaxi/app/webapp.html';
+      var link = window.location.origin + '/tutaxi/app/webapp.html';
       _mostrarModalInvitacion(emailLower, companyNombre, link);
       toast('Invitación creada para ' + emailLower, 'success');
     }
     await cargarCompanies();
   };
-
-  setTimeout(function(){ const el = document.getElementById('nuevo-admin-email'); if(el) el.focus(); }, 100);
 }
 
 async function eliminarCompany(companyId, companyNombre, driverCount) {
