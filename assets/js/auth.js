@@ -10,13 +10,33 @@ async function doRegister() {
   const email = document.getElementById('r-email').value.trim().toLowerCase();
   const tel   = document.getElementById('r-tel').value.trim();
   const pass  = document.getElementById('r-pass').value;
-  const rol   = document.getElementById('r-rol').value;
+  let   rol   = document.getElementById('r-rol').value;
 
   if (!nom || !email || !pass || !tel) { toast('Completa todos los campos', 'err'); return; }
   if (pass.length < 6) { toast('Contraseña mínimo 6 caracteres', 'err'); return; }
 
+  // Validar campos de chofer ANTES de crear en Auth
+  let veh = '', pla = '', col = '', lic = '';
+  if (rol === 'chofer') {
+    veh = document.getElementById('r-veh').value.trim();
+    pla = document.getElementById('r-pla').value.trim();
+    col = document.getElementById('r-col').value.trim();
+    lic = document.getElementById('r-lic').value.trim();
+    if (!veh || !pla) { toast('Completa datos del vehículo', 'err'); return; }
+  }
+
+  // Verificar invitación ANTES de crear en Auth para detectar errores temprano
+  let invitacion = null;
   try {
-    // Crear usuario en Firebase Auth
+    invitacion = await DB.getInvitacion(email);
+  } catch(e) { /* sin invitación */ }
+
+  // Si hay invitación, el rol viene de ahí
+  if (invitacion) {
+    rol = invitacion.rol || 'admin';
+  }
+
+  try {
     const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
     const uid  = cred.user.uid;
 
@@ -28,33 +48,28 @@ async function doRegister() {
       fecha: new Date().toISOString(),
       fechaRegistro: new Date().toISOString(),
       provider: 'email',
-      companyId: null,  // se asigna por el admin para choferes
+      companyId: invitacion ? (invitacion.companyId || null) : null,
     };
 
     if (rol === 'chofer') {
-      const veh = document.getElementById('r-veh').value.trim();
-      const pla = document.getElementById('r-pla').value.trim();
-      if (!veh || !pla) { toast('Completa datos del vehículo', 'err'); return; }
-      user.veh = veh;  user.vehiculo  = veh;
-      user.pla = pla;  user.placas    = pla;
-      user.col = document.getElementById('r-col').value.trim(); user.color    = user.col;
-      user.lic = document.getElementById('r-lic').value.trim(); user.licencia = user.lic;
+      user.veh = veh; user.vehiculo = veh;
+      user.pla = pla; user.placas   = pla;
+      user.col = col; user.color    = col;
+      user.lic = lic; user.licencia = lic;
       user.estatusChofer = 'activo';
     }
 
-    // Verificar si hay invitación pendiente para este email
-    const invitacion = await DB.getInvitacion(email);
+    // Guardar usuario en DB
+    await DB.saveUser(user);
+
+    // Procesar invitación DESPUÉS de guardar usuario exitosamente
     if (invitacion) {
-      user.rol       = invitacion.rol || 'admin';
-      user.companyId = invitacion.companyId || null;
       await DB.deleteInvitacion(email);
-      // Actualizar compañía con el adminUid si aplica
       if (invitacion.companyId && invitacion.rol === 'admin') {
         await DB.updateCompany(invitacion.companyId, { adminUid: uid });
       }
     }
 
-    await DB.saveUser(user);
     DB.saveSession(user);
     me = user;
     const bienvenida = invitacion
@@ -206,11 +221,30 @@ async function completarRegistroGoogle() {
     user.estatusChofer = 'activo';
   }
 
+  // Verificar invitación para este email
+  let invitacion = null;
+  try { invitacion = await DB.getInvitacion(user.email); } catch(e) {}
+  if (invitacion) {
+    user.rol       = invitacion.rol || 'admin';
+    user.companyId = invitacion.companyId || null;
+  }
+
   await DB.saveUser(user);
+
+  if (invitacion) {
+    await DB.deleteInvitacion(user.email);
+    if (invitacion.companyId && invitacion.rol === 'admin') {
+      await DB.updateCompany(invitacion.companyId, { adminUid: user.id });
+    }
+  }
+
   DB.saveSession(user);
   me = user;
   window._googleUser = null;
-  toast('¡Cuenta creada! 🎉', 'ok');
+  const bienvenida = invitacion
+    ? `¡Bienvenido como administrador de ${invitacion.companyNombre || 'tu compañía'}! 🎉`
+    : '¡Cuenta creada! 🎉';
+  toast(bienvenida, 'ok');
   initApp();
 }
 
