@@ -540,6 +540,7 @@
     </div>
     <div class="nav-item" onclick="showView('passengers')">
       <div class="nav-icon">👤</div> Pasajeros
+      <span class="nav-badge" id="badge-passengers">0</span>
     </div>
     <div class="nav-item" onclick="showView('drivers')">
       <div class="nav-icon">🚗</div> Choferes
@@ -957,7 +958,9 @@ async function refreshAll() {
   const pasajeros = users.filter(u => u.rol === 'pasajero');
 
   // badges
-  document.getElementById('badge-users').textContent = users.length;
+  document.getElementById('badge-users').textContent = users.filter(u => u.rol !== 'superadmin' && u.rol !== 'admin').length;
+  const badgePas = document.getElementById('badge-passengers');
+  if (badgePas) badgePas.textContent = pasajeros.length;
   document.getElementById('badge-drivers').textContent = choferes.length;
   document.getElementById('badge-rides').textContent = rides.filter(r => r.est||r.est === 'pendiente').length;
 
@@ -1042,7 +1045,9 @@ function renderAllUsers(users) {
   const el = document.getElementById('all-users-table');
   if (!el) return;
   let filtered = users;
-  // Admin solo ve pasajeros y sus propios choferes — no ve otros admins/superadmins
+  // Nunca mostrar admins/superadmins en la lista de todos los usuarios
+  filtered = filtered.filter(u => u.rol !== 'superadmin' && u.rol !== 'admin');
+  // Admin solo ve pasajeros y sus propios choferes
   if (currentAdmin && currentAdmin.rol === 'admin') {
     filtered = filtered.filter(u => u.rol === 'pasajero' || (u.rol === 'chofer' && u.companyId === currentAdmin.companyId));
   }
@@ -1058,7 +1063,7 @@ function renderAllUsers(users) {
   if (filtered.length === 0) { el.innerHTML = emptyRow('Sin resultados'); return; }
   el.innerHTML = `
     <table>
-      <thead><tr><th>Nombre</th><th>Correo</th><th>Teléfono</th><th>Tipo</th><th>Estado</th><th>Registro</th><th>Acciones</th></tr></thead>
+      <thead><tr><th>Nombre</th><th>Correo</th><th>Tipo</th><th>Estado</th><th>Registro</th><th>Acciones</th></tr></thead>
       <tbody>${filtered.sort((a,b)=>new Date(b.fechaRegistro)-new Date(a.fechaRegistro)).map(u => userRow(u)).join('')}</tbody>
     </table>`;
 }
