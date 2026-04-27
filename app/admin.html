@@ -687,6 +687,9 @@
               <button class="filter-tab active" onclick="filterDrivers('all', this)">Todos</button>
               <button class="filter-tab" onclick="filterDrivers('activo', this)">Activos</button>
               <button class="filter-tab" onclick="filterDrivers('bloqueado', this)">Bloqueados</button>
+              <button class="filter-tab" onclick="filterDrivers('sin_company', this)" id="tab-sin-company">
+                Sin compañía <span id="badge-sin-company" style="display:none;background:#ef4444;color:#fff;border-radius:100px;padding:0 6px;font-size:.7rem;margin-left:.3rem;">0</span>
+              </button>
             </div>
           </div>
           <input class="search-input" placeholder="🔍 Buscar...">
@@ -1150,6 +1153,7 @@ function renderDrivers(drivers) {
                 ? `<button class="btn btn-sm btn-danger" onclick="toggleUserStatus('${u.id}','bloqueado')">Bloquear</button>`
                 : `<button class="btn btn-sm btn-success" onclick="toggleUserStatus('${u.id}','activo')">Activar</button>`}
               ${esSuperAdmin ? `<button class="btn btn-sm btn-ghost" style="font-size:.7rem;" onclick="asignarCompaniaChofer('${u.id}')">🏢</button>` : ''}
+              ${!u.companyId ? `<button class="btn btn-sm btn-ghost" style="font-size:.7rem;color:var(--accent);" onclick="recordarCompania('${u.id}','${(u.nom||'').replace(/'/g,'')}')">🔔</button>` : ''}
             </div>
           </td>
         </tr>`;
@@ -1746,6 +1750,90 @@ async function cancelarInvitacion(email) {
   await DB.deleteInvitacion(email);
   toast('Invitación cancelada', 'error');
   await cargarInvitaciones();
+}
+
+
+// ── SIN COMPAÑÍA ──────────────────────────────────────────────────────────────
+async function recordarCompania(uid, nombre) {
+  if (!confirm('¿Enviar recordatorio a ' + nombre + ' para que seleccione su compañía?')) return;
+  await DB.saveNotif({
+    id: 'n_comp_' + Date.now(),
+    pasId: uid,
+    msg: '⚠️ Tu cuenta de chofer no tiene una compañía asignada. Por favor selecciona tu compañía desde tu perfil para poder recibir viajes.',
+    leida: false,
+    fecha: new Date().toISOString(),
+    tipo: 'compania',
+  });
+  toast('Recordatorio enviado a ' + nombre, 'success');
+}
+
+async function asignarCompaniaChofer(uid) {
+  const companies = await DB.getCompanies();
+  const activas = companies.filter(c => c.activo !== false);
+  if (!activas.length) { toast('No hay compañías activas', 'error'); return; }
+
+  const prev = document.getElementById('modal-asignar-comp');
+  if (prev) prev.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'modal-asignar-comp';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1.5rem;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#1a1a2e;border-radius:16px;width:100%;max-width:380px;padding:1.8rem;border:1px solid rgba(255,255,255,.1);';
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:1rem;font-weight:700;margin-bottom:1rem;';
+  title.textContent = '🏢 Asignar compañía al chofer';
+
+  const sel = document.createElement('select');
+  sel.className = 'form-input';
+  sel.style.marginBottom = '1rem';
+  const optBlank = document.createElement('option');
+  optBlank.value = '';
+  optBlank.textContent = '— Selecciona compañía —';
+  sel.appendChild(optBlank);
+  activas.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.nombre;
+    sel.appendChild(opt);
+  });
+
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:.6rem;';
+
+  const btnOk = document.createElement('button');
+  btnOk.style.cssText = 'flex:2;background:#f5c518;color:#000;border:none;border-radius:10px;padding:.75rem;font-weight:700;cursor:pointer;';
+  btnOk.textContent = 'Asignar';
+  btnOk.onclick = async function() {
+    if (!sel.value) { toast('Selecciona una compañía', 'error'); return; }
+    await DB.updateUser(uid, { companyId: sel.value });
+    await DB.saveNotif({
+      id: 'n_comp_asig_' + Date.now(),
+      pasId: uid,
+      msg: '✅ Has sido asignado a la compañía "' + (activas.find(c => c.id === sel.value)?.nombre || '') + '".',
+      leida: false,
+      fecha: new Date().toISOString(),
+      tipo: 'compania',
+    });
+    overlay.remove();
+    toast('Chofer asignado correctamente', 'success');
+    await refreshAll();
+  };
+
+  const btnCancel = document.createElement('button');
+  btnCancel.style.cssText = 'flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:.75rem;cursor:pointer;';
+  btnCancel.textContent = 'Cancelar';
+  btnCancel.onclick = function() { overlay.remove(); };
+
+  btnRow.appendChild(btnOk);
+  btnRow.appendChild(btnCancel);
+  box.appendChild(title);
+  box.appendChild(sel);
+  box.appendChild(btnRow);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
 
 setInterval(() => { if (adminLoggedIn) refreshAll(); }, 10000);
