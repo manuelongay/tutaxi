@@ -40,6 +40,13 @@ async function doRegister() {
     const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
     const uid  = cred.user.uid;
 
+    // Get companyId from dropdown (chofer) or invitation
+    let companyId = invitacion ? (invitacion.companyId || null) : null;
+    if (!companyId && rol === 'chofer') {
+      const compSel = document.getElementById('r-company');
+      companyId = compSel && compSel.value ? compSel.value : null;
+    }
+
     const user = {
       id: uid,
       nom, ape, nombre: nom, apellido: ape,
@@ -48,7 +55,7 @@ async function doRegister() {
       fecha: new Date().toISOString(),
       fechaRegistro: new Date().toISOString(),
       provider: 'email',
-      companyId: invitacion ? (invitacion.companyId || null) : null,
+      companyId,
     };
 
     if (rol === 'chofer') {
