@@ -78,6 +78,12 @@
         <div class="form-group"><label class="form-label">Color</label><input type="text" class="form-input" id="r-col" placeholder="Blanco"></div>
       </div>
       <div class="form-group"><label class="form-label">Licencia</label><input type="text" class="form-input" id="r-lic" placeholder="LIC-000000"></div>
+      <div class="form-group">
+        <label class="form-label">Compañía <span style="color:var(--gray3);font-size:.75rem;">(opcional, puedes asignarte después)</span></label>
+        <select class="form-input" id="r-company">
+          <option value="">— Sin compañía por ahora —</option>
+        </select>
+      </div>
     </div>
     <button class="btn btn-primary btn-full mt" onclick="doRegister()">Crear cuenta</button>
     <div class="link-text" style="margin-top:.8rem;">¿Ya tienes cuenta? <a onclick="go('login')">Iniciar sesión</a></div>
