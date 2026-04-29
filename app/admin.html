@@ -525,6 +525,7 @@
   <div class="sidebar-logo">
     <div class="logo-text">Tu<span>Taxi</span></div>
     <div class="logo-sub">Admin Panel</div>
+    <div id="sidebar-company-name" style="display:none;font-size:.8rem;color:var(--accent);font-weight:600;margin-top:.3rem;letter-spacing:.3px;"></div>
   </div>
 
   <nav class="sidebar-nav">
@@ -571,6 +572,7 @@
       <div>
         <div class="admin-name" id="admin-name-display">Administrador</div>
         <div class="admin-role" id="admin-role-display">Admin</div>
+        <div id="admin-company-display" style="display:none;font-size:.75rem;color:var(--accent);margin-top:.2rem;font-weight:600;"></div>
       </div>
     </div>
     <button class="btn-logout" onclick="adminLogout()">Cerrar sesión</button>
@@ -899,13 +901,27 @@ function adminLogin() {
       // Mostrar nombre y rol en sidebar
       const nameEl = document.getElementById('admin-name-display');
       const roleEl = document.getElementById('admin-role-display');
+      const compEl = document.getElementById('admin-company-display');
       if (nameEl) nameEl.textContent = u.nom + ' ' + (u.ape||'');
       if (roleEl) roleEl.textContent = u.rol === 'superadmin' ? '⭐ Super Admin' : '🔧 Administrador';
+      // Show company name for admin role
+      if (compEl && u.rol === 'admin' && u.companyId) {
+        DB.getCompany(u.companyId).then(company => {
+          if (company) { compEl.textContent = company.nombre; compEl.style.display = 'block'; }
+        }).catch(() => {});
+      }
       // Mostrar/ocultar sección de compañías solo para superadmin
       const compNav = document.getElementById('nav-companies');
       const invNav  = document.getElementById('nav-invitaciones');
       if (compNav) compNav.style.display = u.rol === 'superadmin' ? 'flex' : 'none';
       if (invNav)  invNav.style.display  = u.rol === 'superadmin' ? 'flex' : 'none';
+      // Show company name for admin role
+      const compNameEl = document.getElementById('sidebar-company-name');
+      if (compNameEl && u.rol === 'admin' && u.companyId) {
+        DB.getCompany(u.companyId).then(comp => {
+          if (comp) { compNameEl.textContent = comp.nombre; compNameEl.style.display = 'block'; }
+        }).catch(() => {});
+      }
       refreshAll();
       toast('Bienvenido, ' + u.nom + ' 🛡️', 'success');
     })
@@ -952,6 +968,10 @@ function showView(name) {
 async function refreshAll() {
   let users = await DB.getUsers();
   let rides = await DB.getRides();
+  // Build companies cache for name lookup
+  const comps = await DB.getCompanies().catch(() => []);
+  _companiesCache = {};
+  comps.forEach(c => { _companiesCache[c.id] = c.nombre; });
   // Admin solo ve su compañía; superadmin ve todo
   if (currentAdmin && currentAdmin.rol === 'admin' && currentAdmin.companyId) {
     users = users.filter(u => u.companyId === currentAdmin.companyId || u.rol === 'pasajero');
@@ -1138,7 +1158,7 @@ function renderDrivers(drivers) {
     <table>
       <thead><tr><th>Nombre</th><th>Correo</th><th>Vehículo</th><th>Placas</th>${esSuperAdmin ? '<th>Compañía</th>' : ''}<th>Estado</th><th>Acciones</th></tr></thead>
       <tbody>${filtered.map(u => {
-        const compNom = esSuperAdmin ? (u.companyId || '—') : '';
+        const compNom = esSuperAdmin ? (_companiesCache[u.companyId] || u.companyId || '—') : '';
         return `<tr>
           <td><strong>${u.nom||u.nombre||''} ${u.ape||u.apellido||''}</strong></td>
           <td style="color:var(--gray3);font-size:.82rem;">${u.email}</td>
@@ -1300,8 +1320,9 @@ const DOCS_DEF = [
 ];
 
 let _docsFilter = 'subido';
-let _docsCache  = {};
-let _usersCache = {};
+let _docsCache      = {};
+let _usersCache     = {};
+let _companiesCache = {};  // id -> nombre
 
 async function cargarDocumentos() {
   const [allDocs, allUsers] = await Promise.all([DB.getAllDocs(), DB.getUsers()]);
@@ -1711,7 +1732,9 @@ async function cargarInvitaciones() {
   const badge = document.getElementById('badge-invitaciones');
   if (badge) { badge.textContent = pending.length; badge.style.display = pending.length ? 'inline-block' : 'none'; }
 
-  if (!invs.length) {
+  // Only show pending (not used) invitations in the list
+  const pending = invs.filter(i => !i.usado);
+  if (!pending.length) {
     wrap.innerHTML = '<div class="empty"><div class="empty-icon">✉️</div><div class="empty-title">Sin invitaciones pendientes</div></div>';
     return;
   }
@@ -1719,7 +1742,7 @@ async function cargarInvitaciones() {
   wrap.innerHTML = `<div class="table-wrap"><table>
     <thead><tr><th>Email</th><th>Compañía</th><th>Rol</th><th>Creada</th><th>Estado</th><th>Acciones</th></tr></thead>
     <tbody>
-    ${invs.map(inv => {
+    ${pending.map(inv => {
       const fecha = inv.fecha ? new Date(inv.fecha).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
       const estPill = inv.usado
         ? '<span class="badge badge-completado">✓ Usada</span>'
@@ -1853,12 +1876,26 @@ _auth.onAuthStateChanged(async firebaseUser => {
       document.getElementById('main-content').style.display = 'flex';
       const nameEl = document.getElementById('admin-name-display');
       const roleEl = document.getElementById('admin-role-display');
+      const compEl = document.getElementById('admin-company-display');
       if (nameEl) nameEl.textContent = u.nom + ' ' + (u.ape||'');
       if (roleEl) roleEl.textContent = u.rol === 'superadmin' ? '⭐ Super Admin' : '🔧 Administrador';
+      // Show company name for admin role
+      if (compEl && u.rol === 'admin' && u.companyId) {
+        DB.getCompany(u.companyId).then(company => {
+          if (company) { compEl.textContent = company.nombre; compEl.style.display = 'block'; }
+        }).catch(() => {});
+      }
       const compNav = document.getElementById('nav-companies');
       const invNav  = document.getElementById('nav-invitaciones');
       if (compNav) compNav.style.display = u.rol === 'superadmin' ? 'flex' : 'none';
       if (invNav)  invNav.style.display  = u.rol === 'superadmin' ? 'flex' : 'none';
+      // Show company name for admin role
+      const compNameEl = document.getElementById('sidebar-company-name');
+      if (compNameEl && u.rol === 'admin' && u.companyId) {
+        DB.getCompany(u.companyId).then(comp => {
+          if (comp) { compNameEl.textContent = comp.nombre; compNameEl.style.display = 'block'; }
+        }).catch(() => {});
+      }
       refreshAll();
     } catch(e) { console.error('Session restore error:', e); }
   }
