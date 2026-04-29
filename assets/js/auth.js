@@ -71,7 +71,11 @@ async function doRegister() {
 
     // Procesar invitación DESPUÉS de guardar usuario exitosamente
     if (invitacion) {
-      await DB.deleteInvitacion(email);
+      // Mark as used (avoids write permission issues on delete for non-superadmin)
+      try {
+        const key = email.replace(/\./g, ',');
+        await firebase.database().ref('invitaciones/' + key).update({ usado: true });
+      } catch(e) { console.warn('Could not mark invitation as used:', e); }
       if (invitacion.companyId && invitacion.rol === 'admin') {
         await DB.updateCompany(invitacion.companyId, { adminUid: uid });
       }
@@ -239,7 +243,10 @@ async function completarRegistroGoogle() {
   await DB.saveUser(user);
 
   if (invitacion) {
-    await DB.deleteInvitacion(user.email);
+    try {
+      const key = user.email.replace(/\./g, ',');
+      await firebase.database().ref('invitaciones/' + key).update({ usado: true });
+    } catch(e) {}
     if (invitacion.companyId && invitacion.rol === 'admin') {
       await DB.updateCompany(invitacion.companyId, { adminUid: user.id });
     }
