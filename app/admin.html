@@ -1151,7 +1151,15 @@ function renderDrivers(drivers) {
   const el = document.getElementById('drivers-table');
   if (!el) return;
   let filtered = drivers;
-  if (driversFilter !== 'all') filtered = filtered.filter(u => (u.estatus||'activo') === driversFilter);
+  if (driversFilter === 'activo' || driversFilter === 'bloqueado') {
+    filtered = filtered.filter(u => u.estatus === driversFilter);
+  } else if (driversFilter === 'sin_company') {
+    filtered = filtered.filter(u => !u.companyId);
+  }
+  // Update sin_company badge
+  const sinComp = drivers.filter(u => !u.companyId);
+  const sinBadge = document.getElementById('badge-sin-company');
+  if (sinBadge) { sinBadge.textContent = sinComp.length; sinBadge.style.display = sinComp.length ? 'inline' : 'none'; }
   if (filtered.length === 0) { el.innerHTML = emptyRow('Sin choferes registrados'); return; }
   const esSuperAdmin = currentAdmin && currentAdmin.rol === 'superadmin';
   el.innerHTML = `
@@ -1185,7 +1193,12 @@ function renderDrivers(drivers) {
 async function filterDrivers(val, el) {
   driversFilter = val;
   document.querySelectorAll('#view-drivers .filter-tab').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
+  if (el) el.classList.add('active');
+  // Ensure companies cache is populated before rendering
+  if (!Object.keys(_companiesCache).length) {
+    const comps = await DB.getCompanies().catch(() => []);
+    comps.forEach(c => { _companiesCache[c.id] = c.nombre; });
+  }
   DB.getUsers().then(users => renderDrivers(users.filter(u => u.rol === 'chofer')));
 }
 
@@ -1733,8 +1746,8 @@ async function cargarInvitaciones() {
   if (badge) { badge.textContent = pending.length; badge.style.display = pending.length ? 'inline-block' : 'none'; }
 
   // Only show pending (not used) invitations in the list
-  const pending = invs.filter(i => !i.usado);
-  if (!pending.length) {
+  const invPending = invs.filter(i => !i.usado);
+  if (!invPending.length) {
     wrap.innerHTML = '<div class="empty"><div class="empty-icon">✉️</div><div class="empty-title">Sin invitaciones pendientes</div></div>';
     return;
   }
@@ -1742,7 +1755,7 @@ async function cargarInvitaciones() {
   wrap.innerHTML = `<div class="table-wrap"><table>
     <thead><tr><th>Email</th><th>Compañía</th><th>Rol</th><th>Creada</th><th>Estado</th><th>Acciones</th></tr></thead>
     <tbody>
-    ${pending.map(inv => {
+    ${invPending.map(inv => {
       const fecha = inv.fecha ? new Date(inv.fecha).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—';
       const estPill = inv.usado
         ? '<span class="badge badge-completado">✓ Usada</span>'
