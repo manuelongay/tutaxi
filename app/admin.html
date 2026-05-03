@@ -1000,6 +1000,11 @@ async function refreshAll() {
   renderAllUsers(users);
   renderPassengers(pasajeros);
   renderDrivers(choferes);
+  // Auto-refresh companies table if visible to keep adminUid in sync
+  if (document.getElementById('view-companies') &&
+      document.getElementById('view-companies').classList.contains('active')) {
+    cargarCompanies();
+  }
   renderRides(rides);
 }
 
@@ -1548,6 +1553,7 @@ async function crearCompany() {
   document.getElementById('comp-admin-email').value = '';
   document.getElementById('form-company').style.display = 'none';
   await cargarCompanies();
+  await cargarInvitaciones(); // actualizar badge de invitaciones
 }
 
 function _mostrarModalInvitacion(email, companyNombre, link) {
