@@ -87,7 +87,14 @@ async function doRegister() {
       ? `¡Bienvenido como administrador de ${invitacion.companyNombre || 'tu compañía'}! 🎉`
       : '¡Cuenta creada! 🎉';
     toast(bienvenida, 'ok');
-    initApp();
+    // Admin/superadmin redirect to admin panel
+    if (user.rol === 'admin' || user.rol === 'superadmin') {
+      setTimeout(() => {
+        window.location.href = window.location.pathname.replace('webapp.html', 'admin.html');
+      }, 1500);
+    } else {
+      initApp();
+    }
   } catch (e) {
     toast(firebaseAuthError(e.code), 'err');
   }
@@ -259,7 +266,13 @@ async function completarRegistroGoogle() {
     ? `¡Bienvenido como administrador de ${invitacion.companyNombre || 'tu compañía'}! 🎉`
     : '¡Cuenta creada! 🎉';
   toast(bienvenida, 'ok');
-  initApp();
+  if (user.rol === 'admin' || user.rol === 'superadmin') {
+    setTimeout(() => {
+      window.location.href = window.location.pathname.replace('webapp.html', 'admin.html');
+    }, 1500);
+  } else {
+    initApp();
+  }
 }
 
 function toggleChoferFieldsGoogle() {
