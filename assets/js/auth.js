@@ -29,7 +29,10 @@ async function doRegister() {
   let invitacion = null;
   try {
     invitacion = await DB.getInvitacion(email);
-  } catch(e) { /* sin invitación */ }
+  } catch(e) {
+    // Permission error on invitaciones - proceed without invitation
+    console.warn('Could not read invitation:', e.message);
+  }
 
   // Si hay invitación, el rol viene de ahí
   if (invitacion) {
@@ -87,11 +90,15 @@ async function doRegister() {
       ? `¡Bienvenido como administrador de ${invitacion.companyNombre || 'tu compañía'}! 🎉`
       : '¡Cuenta creada! 🎉';
     toast(bienvenida, 'ok');
-    // Admin/superadmin redirect to admin panel
+    // Show success and redirect appropriately
     if (user.rol === 'admin' || user.rol === 'superadmin') {
+      // Admin: redirect to admin panel after showing success
+      document.getElementById('screen-register') && (document.getElementById('screen-register').style.display = 'none');
+      // Show a success screen before redirecting
       setTimeout(() => {
-        window.location.href = window.location.pathname.replace('webapp.html', 'admin.html');
-      }, 1500);
+        const base = window.location.pathname.replace(/\/app\/webapp\.html.*/, '');
+        window.location.href = base + '/app/admin.html';
+      }, 2000);
     } else {
       initApp();
     }
@@ -306,6 +313,16 @@ async function cargarSesionFirebase(firebaseUser) {
   let user = await DB.getUser(firebaseUser.uid);
   if (!user) { toast('Usuario no encontrado', 'err'); return; }
   if (user.estatus === 'bloqueado') { toast('Cuenta bloqueada', 'err'); await firebase.auth().signOut(); return; }
+  // Admin/superadmin must use the admin panel, not the webapp
+  if (user.rol === 'admin' || user.rol === 'superadmin') {
+    await firebase.auth().signOut();
+    toast('Los administradores deben acceder desde el Panel Admin', 'err');
+    setTimeout(() => {
+      const base = window.location.pathname.replace(/\/app\/webapp\.html.*/, '');
+      window.location.href = base + '/app/admin.html';
+    }, 2000);
+    return;
+  }
   DB.saveSession(user);
   me = user;
   toast('¡Bienvenido, ' + user.nom + '! 👋', 'ok');
