@@ -843,6 +843,10 @@ const DB = {
   },
   saveCompany: (c) => _db.ref('companies/' + c.id).set(c),
   updateCompany: (id, data) => _db.ref('companies/' + id).update(data),
+  getCompany: async (id) => {
+    const snap = await _db.ref('companies/' + id).get();
+    return snap.exists() ? snap.val() : null;
+  },
 
   // ── Invitaciones ────────────────────────────────
   saveInvitacion: (inv) => {
