@@ -843,10 +843,6 @@ const DB = {
   },
   saveCompany: (c) => _db.ref('companies/' + c.id).set(c),
   updateCompany: (id, data) => _db.ref('companies/' + id).update(data),
-  getCompany: async (id) => {
-    const snap = await _db.ref('companies/' + id).get();
-    return snap.exists() ? snap.val() : null;
-  },
 
   // ── Invitaciones ────────────────────────────────
   saveInvitacion: (inv) => {
@@ -1467,7 +1463,7 @@ async function cargarCompanies() {
 
   let rows = '';
   companies.forEach(function(c) {
-    const admin   = users.find(function(u){ return u.id === c.adminUid; });
+    const admin   = users.find(function(u){ return u.rol === 'admin' && u.companyId === c.id; });
     const drivers = users.filter(function(u){ return u.rol === 'chofer' && u.companyId === c.id; }).length;
     const invPend = invitaciones.find(function(i){ return i.companyId === c.id && !i.usado; });
 
