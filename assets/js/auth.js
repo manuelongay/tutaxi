@@ -345,6 +345,23 @@ function firebaseAuthError(code) {
 }
 
 function toggleChoferFields() {
-  document.getElementById('chofer-fields').style.display =
-    document.getElementById('r-rol').value === 'chofer' ? 'block' : 'none';
+  const rol = document.getElementById('r-rol').value;
+  document.getElementById('chofer-fields').style.display = rol === 'chofer' ? 'block' : 'none';
+  if (rol === 'chofer') _cargarCompaniasDropdown('r-company');
+}
+
+function _cargarCompaniasDropdown(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel || sel.options.length > 1) return; // ya cargadas
+  firebase.database().ref('companies').get().then(function(snap) {
+    if (!snap.exists()) return;
+    Object.values(snap.val())
+      .filter(function(c){ return c.activo !== false; })
+      .forEach(function(c) {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.nombre;
+        sel.appendChild(opt);
+      });
+  }).catch(function(e){ console.warn('No se pudieron cargar compañías:', e); });
 }
