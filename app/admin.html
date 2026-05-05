@@ -843,6 +843,10 @@ const DB = {
   },
   saveCompany: (c) => _db.ref('companies/' + c.id).set(c),
   updateCompany: (id, data) => _db.ref('companies/' + id).update(data),
+  getCompany: async function(id) {
+    var snap = await _db.ref('companies/' + id).get();
+    return snap.exists() ? snap.val() : null;
+  },
 
   // ── Invitaciones ────────────────────────────────
   saveInvitacion: (inv) => {
@@ -1747,12 +1751,12 @@ async function cargarInvitaciones() {
   if (!wrap) return;
 
   // Update badge
-  const pending = invs.filter(i => !i.usado);
+  const pending = invs.filter(function(i){ return i.usado !== true; });
   const badge = document.getElementById('badge-invitaciones');
   if (badge) { badge.textContent = pending.length; badge.style.display = pending.length ? 'inline-block' : 'none'; }
 
   // Only show pending (not used) invitations in the list
-  const invPending = invs.filter(i => !i.usado);
+  const invPending = invs.filter(function(i){ return i.usado !== true; });
   if (!invPending.length) {
     wrap.innerHTML = '<div class="empty"><div class="empty-icon">✉️</div><div class="empty-title">Sin invitaciones pendientes</div></div>';
     return;
