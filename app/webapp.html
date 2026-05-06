@@ -184,21 +184,14 @@
         <div class="ri-item"><span class="ri-lbl">Precio sugerido</span><span class="ri-val" id="ri-sug">—</span></div>
       </div>
       <div class="price-box">
-        <div><div class="price-lbl">Tu oferta</div><div class="price-val" id="price-show">$50</div></div>
+        <div><div class="price-lbl">Costo del viaje</div><div class="price-val" id="price-show">$50</div></div>
         <div style="flex:1;padding-left:1rem;">
           <input type="range" id="price-range" min="30" max="500" value="50" step="5"
             style="width:100%;accent-color:var(--accent);" oninput="setPrice(this.value)">
           <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--gray3);margin-top:.3rem;"><span>$30</span><span>$500</span></div>
         </div>
       </div>
-      <div class="sec-label">Sugerencias rápidas</div>
-      <div class="chips">
-        <div class="chip" onclick="pickPrice(50)">$50</div>
-        <div class="chip" onclick="pickPrice(80)">$80</div>
-        <div class="chip" onclick="pickPrice(120)">$120</div>
-        <div class="chip" onclick="pickPrice(200)">$200</div>
-        <div class="chip" onclick="pickPrice(350)">$350</div>
-      </div>
+      <!-- Sugerencias rápidas ocultas -->
       <button class="btn btn-primary btn-full" id="btn-solicitar" onclick="solicitarViaje()">Solicitar viaje 🚖</button>
     </div>
     <div id="viaje-activo-wrap" style="display:none;">
